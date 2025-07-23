@@ -1,7 +1,6 @@
 import netCDF4 as nc
 import numpy as np
 import os
-import json
 from datetime import datetime, timedelta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -124,15 +123,14 @@ def get_projection_test_data():
         print("✅ NetCDF file opened successfully.")
 
         # 격자(위경도)
-        # lat = ds_gridcro.variables['LAT'][0][0]
-        # lon = ds_gridcro.variables['LON'][0][0]
+        lat = ds_gridcro.variables['LAT'][0][0]
+        lon = ds_gridcro.variables['LON'][0][0]
         
         ## 격자(좌표계)
         XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0
         YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0
         XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0
         YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0
-        print(XORIG, XCELL, YORIG, YCELL)
 
         lon = [[0 for j in range(67)] for i in range(82)]
         lat = [[0 for j in range(67)] for i in range(82)]
@@ -141,11 +139,99 @@ def get_projection_test_data():
                 lon[i][j] = XORIG + (j * XCELL) + 4500
                 lat[i][j] = YORIG + (i * YCELL) + 4500
 
-        print("lon:", (np.array(lon)))
-        print("lat:", (np.array(lat)))
-        
         lon = np.array(lon)
         lat = np.array(lat)
+
+        # 풍향, 풍속            
+        wds = ds_metcro.variables['WDIR10'][0][0]
+        wss = ds_metcro.variables['WSPD10'][0][0]
+
+        print(wds.shape)
+        wd = np.array([float(v) for v in wds.flatten()])
+        ws = np.array([float(v) for v in wss.flatten()])
+        
+        # 풍향, 풍속 => U, V 변환
+        rad = np.radians(wd)
+        # rad = np.deg2rad(wd)
+        u = -ws * np.sin(rad)
+        v = -ws * np.cos(rad)
+        # u = -ws * np.cos(rad)
+        # v = -ws * np.sin(rad)
+
+        # ol-wind에 보내야하는 데이터
+        lo1 = float(np.min(lon))      
+        la1 = float(np.min(lat))
+        lo2 = float(np.max(lon))
+        la2 = float(np.max(lat)) 
+        nx, ny = wds.shape
+        dx = (lo2 - lo1) / (nx - 1)
+        dy = (la2 - la1) / (ny - 1)
+        
+        # 시간 
+        SDATE = ds_gridcro.getncattr('SDATE')
+        STIME = ds_gridcro.getncattr('STIME')
+        TSTEP = ds_gridcro.getncattr('TSTEP')
+
+        SDATE = int(SDATE)
+        STIME = int(STIME)
+        
+        year = SDATE // 1000
+        day_of_year = SDATE % 1000
+        date_part = datetime(year, 1, 1) + timedelta(days=day_of_year - 1)
+        hour = STIME // 10000
+
+        start_dt = datetime(
+            date_part.year,
+            date_part.month,
+            date_part.day,
+            hour,
+            00,
+            00
+        )   
+        refTime = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ') 
+        
+        final_dt = start_dt + timedelta(hours=9)
+        time = final_dt.strftime('%Y-%m-%d %H:%M:%S KST')
+        print(time)
+        
+        # ol-wind WindLayer에 사용할 데이터
+        wind_data = [
+            {
+                "header": {
+                    "parameterCategory": 2,
+                    "parameterNumber": 2,
+                    "nx": nx, "ny": ny,
+                    "lo1": lo1, "la1": la1,
+                    "lo2": lo2, "la2": la2,
+                    "dx": dx, "dy": dy,
+                    "refTime": refTime,
+                    "surface1Type": 100,
+                    "surface1Value": 100000.0,
+                    "forecastTime": 0,
+                    "scanMode": 0
+                },
+                "data": u.tolist()
+            },
+            {
+                "header": {
+                    "parameterCategory": 2,
+                    "parameterNumber": 3,
+                    "nx": nx, "ny": ny,
+                    "lo1": lo1, "la1": la1,
+                    "lo2": lo2, "la2": la2,
+                    "dx": dx, "dy": dy,
+                    "refTime": refTime,
+                    "surface1Type": 100,
+                    "surface1Value": 100000.0,
+                    "forecastTime": 0,
+                    "scanMode": 0
+                },
+                "data": v.tolist()
+            },
+        ]
+        
+        
+
 
         ### 물질 ###
         # TMP
@@ -156,8 +242,27 @@ def get_projection_test_data():
             {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
             for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
         ]
+        
+        temp_data = [
+            {
+                "header":{
+                    "parameterCategory": 0,
+                    "parameterNumber": 0,
+                    "nx": nx, "ny": ny,
+                    "lo1": lo1, "la1": la1,
+                    "lo2": lo2, "la2": la2,
+                    "dx": dx, "dy": dy,
+                    "refTime": refTime,
+                    "surface1Type": 1,
+                    "surface1Value": 2,
+                    "forecastTime": 0,
+                    "scanMode": 0
+                },
+                "data": tmp_arr.tolist()
+            }
+        ]
 
-        wind_data, time = get_wind_data(1, 0)
+        # wind_data, time = get_wind_data(1, 0)
         
         result = {
             "windData": wind_data,    # 바람은 공통
@@ -165,10 +270,16 @@ def get_projection_test_data():
             "metaData": {'time': time}
         }
         
+        # with open('wind.json', 'w') as f :
+        #     json.dump(wind_data, f, indent=4)
+        
+        # with open('temp.json', 'w') as f :
+        #     json.dump(temp_data, f, indent=4)
+
         return result
     
     except Exception as e:
         print(f"❌ Error: {e}")
         exit(1)
         
-get_projection_test_data()
+# get_projection_test_data()
