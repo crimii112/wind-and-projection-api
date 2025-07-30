@@ -42,14 +42,13 @@ def get_wind_data(wind_gap, tstep):
     lons = ds_gridcro.variables['LON'][0][0]
     filtered_lats = filter_data_with_gap(lats, wind_gap)
     filtered_lons = filter_data_with_gap(lons, wind_gap)
-
+    
     # 풍향, 풍속            
     wds = ds_metcro.variables['WDIR10'][tstep][0]
     wss = ds_metcro.variables['WSPD10'][tstep][0]
     filtered_wd = filter_data_with_gap(wds, wind_gap)
     filtered_ws = filter_data_with_gap(wss, wind_gap)
 
-    print(filtered_wd.shape)
     wd = np.array([float(v) for v in filtered_wd.flatten()])
     ws = np.array([float(v) for v in filtered_ws.flatten()])
     
@@ -127,6 +126,7 @@ def get_wind_data(wind_gap, tstep):
     ]
     
     return wind_data, time
+
 
 
 

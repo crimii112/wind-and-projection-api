@@ -46,10 +46,13 @@ def get_wind():
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/proj/test', methods=['GET'])
+@app.route('/api/proj/test', methods=['POST'])
 def get_proj_test():
     try:
-        result = get_projection_test_data()
+        body = request.get_json()
+        arrow_gap = body.get('arrowGap')
+        
+        result = get_projection_test_data(int(arrow_gap))
         return jsonify(result)
 
     except Exception as e:

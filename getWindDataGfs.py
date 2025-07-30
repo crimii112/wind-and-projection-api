@@ -13,24 +13,25 @@ import json
 ###
 
 def download_and_convert():
-    # base_url = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/'
-    # date_part = "gfs.20250701/00/atmos/"
+    base_url = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/'
+    date_part = "gfs.20250725/00/atmos/"
     # file_part = "gfs.t00z.pgrb2.0p25.f000"
+    file_part = "gfs.t00z.pgrb2.1p00.f000"
     
-    # gfs_url = base_url + date_part + file_part
+    gfs_url = base_url + date_part + file_part
     script_dir = os.path.dirname(os.path.abspath(__file__))
     grib_filename = os.path.join(script_dir, 'data', 'wind-gfs.grib2')
 
-    # print(f"📥 Downloading GFS data: {gfs_url}")
-    # res = requests.get(gfs_url, stream=True)
-    # if res.status_code != 200:
-    #     raise Exception(f"GFS file not found or failed: {gfs_url}")
+    print(f"📥 Downloading GFS data: {gfs_url}")
+    res = requests.get(gfs_url, stream=True)
+    if res.status_code != 200:
+        raise Exception(f"GFS file not found or failed: {gfs_url}")
 
-    # with open(grib_filename, 'wb') as f:
-    #     for chunk in res.iter_content(8192):
-    #         f.write(chunk)
+    with open(grib_filename, 'wb') as f:
+        for chunk in res.iter_content(8192):
+            f.write(chunk)
             
-    # print("✅ GRIB downloaded. Converting...")
+    print("✅ GRIB downloaded. Converting...")
     
     grbs = pygrib.open(grib_filename)
     
@@ -86,7 +87,7 @@ def download_and_convert():
                 "lo1": lo1, "la1": la1,
                 "lo2": lo2, "la2": la2,
                 "dx": dx, "dy": dy,
-                "refTime": "2025-07-01T00:00:00Z",
+                "refTime": "2025-07-25T00:00:00Z",
                 "surface1Type": 100,
                 "surface1Value": 100000.0,
                 "forecastTime": 0,
@@ -102,7 +103,7 @@ def download_and_convert():
                 "lo1": lo1, "la1": la1,
                 "lo2": lo2, "la2": la2,
                 "dx": dx, "dy": dy,
-                "refTime": "2025-07-01T00:00:00Z",
+                "refTime": "2025-07-25T00:00:00Z",
                 "surface1Type": 100,
                 "surface1Value": 100000.0,
                 "forecastTime": 0,
@@ -121,7 +122,7 @@ def download_and_convert():
                 "lo1": lo1, "la1": la1,
                 "lo2": lo2, "la2": la2,
                 "dx": dx, "dy": dy,
-                "refTime": "2025-07-01T00:00:00Z",
+                "refTime": "2025-07-25T00:00:00Z",
                 "surface1Type": 1,
                 "surface1Value": 2,
                 "forecastTime": 0,
