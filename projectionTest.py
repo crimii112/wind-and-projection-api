@@ -50,7 +50,11 @@ def get_arrow_data(arrow_gap):
             # 슬라이스 범위 (경계 체크)
             i_end = min(i + arrow_gap, nrows)
             j_end = min(j + arrow_gap, ncols)
+            print(i_end, j_end)
 
+            if(i_end % arrow_gap != 0 or j_end % arrow_gap != 0):
+                break
+            
             # 해당 블록 추출
             lon_block = lon[i:i_end, j:j_end]
             lat_block = lat[i:i_end, j:j_end]
