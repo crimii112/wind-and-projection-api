@@ -21,7 +21,8 @@ def set_grid():
     la2 = float(np.max(lat)) 
         
     print(lat, lon)
-    print(lo1, lo2)
-    print(la1, la2)
+    print(lat.shape)
+    print(lo1, lo2) # 91.72314453125, 160.27685546875
+    print(la1, la2) # 19.91510009765625, 53.917694091796875
     
 set_grid()
