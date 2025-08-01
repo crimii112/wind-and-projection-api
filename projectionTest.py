@@ -50,7 +50,6 @@ def get_arrow_data(arrow_gap):
             # 슬라이스 범위 (경계 체크)
             i_end = min(i + arrow_gap, nrows)
             j_end = min(j + arrow_gap, ncols)
-            print(i_end, j_end)
 
             if(i_end % arrow_gap != 0 or j_end % arrow_gap != 0):
                 break
@@ -210,15 +209,22 @@ def get_projection_test_data(arrow_gap):
             },
         ]
 
+        o3_arr = convert_flatten_array(ds_aconc, 'O3', 0)
+        heatmap_data = [
+            {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
+            for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
+        ]
+        
+
         ### 물질 ###
         # TMP
-        tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
+        # tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
         
-        # 물질별 heatmap_data
-        heatmap_data = [
-            {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
-            for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
-        ]
+        # # 물질별 heatmap_data
+        # heatmap_data = [
+        #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
+        #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
+        # ]
         
         # temp_data = [
         #     {
