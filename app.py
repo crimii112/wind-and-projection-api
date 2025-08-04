@@ -5,6 +5,7 @@ from getWindData import download_and_convert
 from getWrfTmpData import convert_tmp_nc_to_json
 from getWrfPollData import convert_poll_nc_to_json
 from projectionTest import get_projection_test_data
+from projectionTestLcc import get_projection_test_lcc_data
 
 app = Flask(__name__)
 
@@ -46,13 +47,23 @@ def get_wind():
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/proj/test', methods=['POST'])
+@app.route('/api/proj/test', methods=['GET'])
 def get_proj_test():
+    try:
+        result = get_projection_test_data()
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/lcc', methods=['POST'])
+def get_lcc_test():
     try:
         body = request.get_json()
         arrow_gap = body.get('arrowGap')
         
-        result = get_projection_test_data(int(arrow_gap))
+        result = get_projection_test_lcc_data(int(arrow_gap))
         return jsonify(result)
 
     except Exception as e:

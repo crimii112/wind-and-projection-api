@@ -18,75 +18,7 @@ def convert_flatten_array(ds, el, tstep):
 def filter_data_with_gap(arr, gap):
     return arr[::gap, ::gap]
 
-## 바람 화살표 데이터
-def get_arrow_data(arrow_gap):
-    ds_gridcro = nc.Dataset(GRIDCRO_PATH)
-    ds_metcro = nc.Dataset(METCRO_PATH)
-    
-    ## 격자(좌표계)
-    XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0
-    YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0
-    XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0
-    YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0
-
-    lon = [[0 for j in range(67)] for i in range(82)]
-    lat = [[0 for j in range(67)] for i in range(82)]
-    for i in range(82):
-        for j in range(67):
-            lon[i][j] = XORIG + (j * XCELL) + 4500
-            lat[i][j] = YORIG + (i * YCELL) + 4500
-
-    lon = np.array(lon)
-    lat = np.array(lat)
-    
-    # 풍향, 풍속            
-    wds = ds_metcro.variables['WDIR10'][0][0]
-    wss = ds_metcro.variables['WSPD10'][0][0]
-    
-    nrows, ncols = 82, 67
-    arrow_data = []
-    for i in range(0, nrows, arrow_gap):
-        for j in range(0, ncols, arrow_gap):
-            # 슬라이스 범위 (경계 체크)
-            i_end = min(i + arrow_gap, nrows)
-            j_end = min(j + arrow_gap, ncols)
-
-            if(i_end % arrow_gap != 0 or j_end % arrow_gap != 0):
-                break
-            
-            # 해당 블록 추출
-            lon_block = lon[i:i_end, j:j_end]
-            lat_block = lat[i:i_end, j:j_end]
-            wd_block = wds[i:i_end, j:j_end]
-            ws_block = wss[i:i_end, j:j_end]
-
-            # 각 블록의 평균(혹은 중심)
-            avg_lon = np.mean(lon_block)
-            avg_lat = np.mean(lat_block)
-            avg_wd = np.mean(wd_block)
-            avg_ws = np.mean(ws_block)
-
-            arrow_data.append({
-                'lat': float(avg_lat),
-                'lon': float(avg_lon),
-                'wd': float(avg_wd),
-                'ws': float(avg_ws)
-            })
-    
-    # lonForGap = lon[::arrow_gap, ::arrow_gap]
-    # latForGap = lat[::arrow_gap, ::arrow_gap]
-    
-    # wdForGap = np.array(wds)[::arrow_gap, ::arrow_gap]
-    # wsForGap = np.array(wss)[::arrow_gap, ::arrow_gap]
-    
-    # arrow_data = [
-    #     {'lat': float(lat), 'lon': float(lon), 'wd': float(wd), 'ws': float(ws)}
-    #     for lat, lon, wd, ws in zip(latForGap.flatten(), lonForGap.flatten(), wdForGap.flatten(), wsForGap.flatten())
-    # ]
-    
-    return arrow_data
-
-def get_projection_test_data(arrow_gap):
+def get_projection_test_data():
     try:
         ds_aconc = nc.Dataset(ACONC_PATH)
         ds_gridcro = nc.Dataset(GRIDCRO_PATH)
@@ -98,17 +30,19 @@ def get_projection_test_data(arrow_gap):
         lon = ds_gridcro.variables['LON'][0][0]
         
         ## 격자(좌표계)
-        XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0
-        YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0
-        XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0
-        YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0
+        XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0(9km) / -2349000.0(27km)
+        YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0(9km) / -1728000.0(27km)
+        XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0(9km) / 27000.0(27km)
+        YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0(9km) / 27000.0(27km)
 
-        lon = [[0 for j in range(67)] for i in range(82)]
-        lat = [[0 for j in range(67)] for i in range(82)]
-        for i in range(82):
-            for j in range(67):
-                lon[i][j] = XORIG + (j * XCELL) + 4500
-                lat[i][j] = YORIG + (i * YCELL) + 4500
+        nrows, ncols = 82, 67 # 9km
+        # nrows, ncols = 128, 174 # 27km    
+        lon = [[0 for j in range(ncols)] for i in range(nrows)]
+        lat = [[0 for j in range(ncols)] for i in range(nrows)]
+        for i in range(nrows):
+            for j in range(ncols):
+                lon[i][j] = XORIG + (j * XCELL) + (XCELL / 2) # 4500(9km) / 13500(27km)
+                lat[i][j] = YORIG + (i * YCELL) + (XCELL / 2) # 4500(9km) / 13500(27km)
 
         lon = np.array(lon)
         lat = np.array(lat)
@@ -209,22 +143,15 @@ def get_projection_test_data(arrow_gap):
             },
         ]
 
-        o3_arr = convert_flatten_array(ds_aconc, 'O3', 0)
-        heatmap_data = [
-            {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
-            for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
-        ]
-        
-
         ### 물질 ###
         # TMP
-        # tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
+        tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
         
-        # # 물질별 heatmap_data
-        # heatmap_data = [
-        #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
-        #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
-        # ]
+        # 물질별 heatmap_data
+        heatmap_data = [
+            {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
+            for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
+        ]
         
         # temp_data = [
         #     {
@@ -244,15 +171,10 @@ def get_projection_test_data(arrow_gap):
         #         "data": tmp_arr.tolist()
         #     }
         # ]
-
-        
-        # 바람 화살표 데이터
-        
         
         result = {
             "windData": wind_data,    # 바람은 공통
             "heatmapData": heatmap_data,
-            "arrowData": get_arrow_data(arrow_gap),
             "metaData": {'time': time}
         }
         

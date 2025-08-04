@@ -53,28 +53,31 @@ def set_grid():
     
     
     #### 0.1도 간격
-    # grid = []   
-    # for lat in np.arange(19.5, 54.1, 0.1):
-    #     row = []
-    #     for lon in np.arange(91.5, 160.6, 0.1):
-    #         lon_min = lon - 0.05
-    #         lon_max = lon + 0.05
-    #         lat_min = lat - 0.05
-    #         lat_max = lat + 0.05
-    #         mask = (
-    #             (orig_lon >= lon_min) & (orig_lon < lon_max) &
-    #             (orig_lat >= lat_min) & (orig_lat < lat_max)
-    #         )
+    grid = []   
+    for (lat) in np.arange(19.5, 54.1, 0.1):
+        row = []
+        for lon in np.arange(91.5, 160.6, 0.1):
+            lat = round(lat, 1)
+            lon = round(lon, 1)
             
-    #         if np.any(mask):
-    #             u_mean = np.mean(orig_u[mask])
-    #             v_mean = np.mean(orig_v[mask])
-    #         else:
-    #             u_mean = np.nan
-    #             v_mean = np.nan
+            lon_min = round(lon - 0.05, 2)
+            lon_max = round(lon + 0.05, 2)
+            lat_min = round(lat - 0.05, 2)
+            lat_max = round(lat + 0.05, 2)
+            mask = (
+                (orig_lon >= lon_min) & (orig_lon < lon_max) &
+                (orig_lat >= lat_min) & (orig_lat < lat_max)
+            )
+
+            if np.any(mask):
+                u_mean = np.mean(orig_u[mask])
+                v_mean = np.mean(orig_v[mask])
+            else:
+                u_mean = np.nan
+                v_mean = np.nan
                 
-    #         row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
-    #     grid.append(row)
+            row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
+        grid.append(row)
     
     #### 0.25도 간격
     # grid = []   
@@ -101,28 +104,30 @@ def set_grid():
     #     grid.append(row)
     
     #### 1.0도 간격
-    grid = []   
-    for lat in np.arange(19.5, 54.6, 1.0):
-        row = []
-        for lon in np.arange(91.5, 160.6, 1.0):
-            lon_min = lon - 0.5
-            lon_max = lon + 0.5
-            lat_min = lat - 0.5
-            lat_max = lat + 0.5
-            mask = (
-                (orig_lon >= lon_min) & (orig_lon < lon_max) &
-                (orig_lat >= lat_min) & (orig_lat < lat_max)
-            )
+    # grid = []   
+    # for lat in np.arange(19.5, 54.6, 1.0):
+    #     row = []
+    #     for lon in np.arange(91.5, 160.6, 1.0):
+    #         lon_min = lon - 0.5
+    #         lon_max = lon + 0.5
+    #         lat_min = lat - 0.5
+    #         lat_max = lat + 0.5
+    #         mask = (
+    #             (orig_lon >= lon_min) & (orig_lon < lon_max) &
+    #             (orig_lat >= lat_min) & (orig_lat < lat_max)
+    #         )
             
-            if np.any(mask):
-                u_mean = np.mean(orig_u[mask])
-                v_mean = np.mean(orig_v[mask])
-            else:
-                u_mean = np.nan
-                v_mean = np.nan
+    #         if np.any(mask):
+    #             u_mean = np.mean(orig_u[mask])
+    #             v_mean = np.mean(orig_v[mask])
+    #         else:
+    #             u_mean = np.nan
+    #             v_mean = np.nan
+            
+            
                 
-            row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
-        grid.append(row)
+    #         row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
+    #     grid.append(row)
     
     # filtered_grid = [
     #     cell for row in grid for cell in row
@@ -133,7 +138,7 @@ def set_grid():
     # print(np.array(grid).shape) # 0.1 = (346, 691) / 0.25 = (139, 277) / 1.0 = (36, 70)
     # print(np.array(grid))
     
-    ## nan처리 => 가까운 값들 평균내서 넣기
+    ## nan처리 => 상하좌우 평균내서 넣기
     def fill_nan_with_neighbors(grid):
         rows = len(grid)
         cols = len(grid[0])
@@ -153,38 +158,38 @@ def set_grid():
                                 n_cell = filled_grid[ni][nj]
                                 if not (math.isnan(n_cell['u']) or math.isnan(n_cell['v'])):
                                     neighbors.append(n_cell)
-                                    
                         if neighbors:
                             cell['u'] = float(np.mean([n['u'] for n in neighbors]))
                             cell['v'] = float(np.mean([n['v'] for n in neighbors]))
                             changed = True
+                            
         return filled_grid
-    
+        
     grid = fill_nan_with_neighbors(grid)
     
     print(np.array(grid).shape) # 0.1 = (346, 691) / 0.25 = (139, 277) / 1.0 = (36, 70)
     print(np.array(grid))
     
-    # with open('gridFinal-1.0.json', 'w') as f :
+    # with open('gridFinal-0.1.json', 'w') as f :
     #     json.dump(grid, f, indent=4)
+    
+    grid_u = np.array([d['u'] for d in np.array(grid).flatten()])
+    grid_v = np.array([d['v'] for d in np.array(grid).flatten()])
     
     ## earth 데이터에 맞춰서 만들기
     lo1 = 91.5
     la1 = 19.5
     lo2 = 160.5
-    la2 = 54.5
-    # la2 = 54.0
+    # la2 = 54.5
+    la2 = 54.0
     nx = np.array(grid).shape[1]
     ny = np.array(grid).shape[0]
-    dx = 1.0
-    dy = 1.0
+    # dx = 1.0
+    # dy = 1.0
     # dx = 0.25
     # dy = 0.25
-    # dx = 0.1
-    # dy = 0.1
-    
-    grid_u = np.array([d['u'] for d in np.array(grid).flatten()])
-    grid_v = np.array([d['v'] for d in np.array(grid).flatten()])
+    dx = 0.1
+    dy = 0.1
     
     windData = [
         {
@@ -221,7 +226,7 @@ def set_grid():
         },
     ]
     
-    with open('set-grid-wind-1.0.json', 'w') as f :
+    with open('set-grid-wind-0.1.json', 'w') as f :
         json.dump(windData, f, indent=4)
     
 set_grid()
