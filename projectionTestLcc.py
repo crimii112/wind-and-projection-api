@@ -44,7 +44,7 @@ def get_projection_test_lcc_data(arrow_gap):
         ########## 격자 폴리곤 데이터 ##########
         ##### TMP #####
         # tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
-        # heatmap_data = [
+        # polygon_data = [
         #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
         #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
         # ]

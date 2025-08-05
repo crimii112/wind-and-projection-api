@@ -79,55 +79,6 @@ def set_grid():
             row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
         grid.append(row)
     
-    #### 0.25도 간격
-    # grid = []   
-    # for lat in np.arange(19.5, 54.1, 0.25):
-    #     row = []
-    #     for lon in np.arange(91.5, 160.6, 0.25):
-    #         lon_min = lon - 0.125
-    #         lon_max = lon + 0.125
-    #         lat_min = lat - 0.125
-    #         lat_max = lat + 0.125
-    #         mask = (
-    #             (orig_lon >= lon_min) & (orig_lon < lon_max) &
-    #             (orig_lat >= lat_min) & (orig_lat < lat_max)
-    #         )
-            
-    #         if np.any(mask):
-    #             u_mean = np.mean(orig_u[mask])
-    #             v_mean = np.mean(orig_v[mask])
-    #         else:
-    #             u_mean = np.nan
-    #             v_mean = np.nan
-                
-    #         row.append({'lon': float(round(lon, 2)), 'lat': float(round(lat, 2)), 'u': float(u_mean), 'v': float(v_mean)})
-    #     grid.append(row)
-    
-    #### 1.0도 간격
-    # grid = []   
-    # for lat in np.arange(19.5, 54.6, 1.0):
-    #     row = []
-    #     for lon in np.arange(91.5, 160.6, 1.0):
-    #         lon_min = lon - 0.5
-    #         lon_max = lon + 0.5
-    #         lat_min = lat - 0.5
-    #         lat_max = lat + 0.5
-    #         mask = (
-    #             (orig_lon >= lon_min) & (orig_lon < lon_max) &
-    #             (orig_lat >= lat_min) & (orig_lat < lat_max)
-    #         )
-            
-    #         if np.any(mask):
-    #             u_mean = np.mean(orig_u[mask])
-    #             v_mean = np.mean(orig_v[mask])
-    #         else:
-    #             u_mean = np.nan
-    #             v_mean = np.nan
-            
-            
-                
-    #         row.append({'lon': float(round(lon, 1)), 'lat': float(round(lat, 1)), 'u': float(u_mean), 'v': float(v_mean)})
-    #     grid.append(row)
     
     # filtered_grid = [
     #     cell for row in grid for cell in row
@@ -135,7 +86,7 @@ def set_grid():
     # ]
     # print(np.array(filtered_grid).shape)
     
-    # print(np.array(grid).shape) # 0.1 = (346, 691) / 0.25 = (139, 277) / 1.0 = (36, 70)
+    # print(np.array(grid).shape) # 0.1 = (346, 691)
     # print(np.array(grid))
     
     ## nan처리 => 상하좌우 평균내서 넣기
@@ -167,8 +118,7 @@ def set_grid():
         
     grid = fill_nan_with_neighbors(grid)
     
-    print(np.array(grid).shape) # 0.1 = (346, 691) / 0.25 = (139, 277) / 1.0 = (36, 70)
-    print(np.array(grid))
+    print(np.array(grid).shape) # 0.1 = (346, 691)
     
     # with open('gridFinal-0.1.json', 'w') as f :
     #     json.dump(grid, f, indent=4)
@@ -180,14 +130,9 @@ def set_grid():
     lo1 = 91.5
     la1 = 19.5
     lo2 = 160.5
-    # la2 = 54.5
     la2 = 54.0
     nx = np.array(grid).shape[1]
     ny = np.array(grid).shape[0]
-    # dx = 1.0
-    # dy = 1.0
-    # dx = 0.25
-    # dy = 0.25
     dx = 0.1
     dy = 0.1
     

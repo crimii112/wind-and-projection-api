@@ -150,7 +150,7 @@ def convert_poll_nc_to_json(poll, wind_gap, tstep):
         
         # PM10
         pm10_all_arrays = []
-        for idx, el in enumerate(PM10_ELEMENTS):
+        for el in enumerate(PM10_ELEMENTS):
             el_array = convert_flatten_array(ds_aconc, el, tstep-1)
             pm10_all_arrays.append(el_array)
         
@@ -158,7 +158,7 @@ def convert_poll_nc_to_json(poll, wind_gap, tstep):
         
         # PM25
         pm25_all_arrays = []
-        for idx, el in enumerate(PM25_ELEMENTS):
+        for el in enumerate(PM25_ELEMENTS):
             el_array = convert_flatten_array(ds_aconc, el, tstep-1)
             pm25_all_arrays.append(el_array)
         
