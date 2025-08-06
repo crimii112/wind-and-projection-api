@@ -54,7 +54,8 @@ def set_grid():
     
     #### 0.1도 간격
     grid = []   
-    for (lat) in np.arange(19.5, 54.1, 0.1):
+    # for (lat) in np.arange(19.5, 54.1, 0.1):
+    for (lat) in np.arange(54.0, 19.4, -0.1):
         row = []
         for lon in np.arange(91.5, 160.6, 0.1):
             lat = round(lat, 1)
