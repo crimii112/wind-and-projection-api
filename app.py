@@ -61,9 +61,10 @@ def get_proj_test():
 def get_lcc_test():
     try:
         body = request.get_json()
+        bg_poll = body.get('bgPoll')
         arrow_gap = body.get('arrowGap')
         
-        result = get_projection_test_lcc_data(int(arrow_gap))
+        result = get_projection_test_lcc_data(bg_poll, int(arrow_gap))
         return jsonify(result)
 
     except Exception as e:
