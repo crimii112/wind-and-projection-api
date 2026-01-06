@@ -6,8 +6,10 @@ from getWrfTmpData import convert_tmp_nc_to_json
 from getWrfPollData import convert_poll_nc_to_json
 from projectionTest import get_projection_test_data
 from projectionTestLcc import get_projection_test_lcc_data
+from projectionTestUtm import get_projection_test_utm_data
+from projectionTestUtm import get_projection_test_utm_ol_wind
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 
 CORS(app)
 
@@ -65,6 +67,26 @@ def get_lcc_test():
         arrow_gap = body.get('arrowGap')
         
         result = get_projection_test_lcc_data(bg_poll, int(arrow_gap))
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/utm', methods=['GET'])
+def get_utm_test():
+    try:
+        result = get_projection_test_utm_data()
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/utm/olwind', methods=['GET'])
+def get_utm_ol_wind_test():
+    try:
+        result = get_projection_test_utm_ol_wind()
         return jsonify(result)
 
     except Exception as e:

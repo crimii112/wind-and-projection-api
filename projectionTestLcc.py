@@ -3,12 +3,12 @@ import numpy as np
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
-GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_27KM.2025063012.nc')
-METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_27KM.2025063012.nc')
-# ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.09KM.2025063012.nc')
-# GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_09KM.2025063012.nc')
-# METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_09KM.2025063012.nc')
+# ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
+# GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_27KM.2025063012.nc')
+# METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_27KM.2025063012.nc')
+ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.09KM.2025063012.nc')
+GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_09KM.2025063012.nc')
+METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_09KM.2025063012.nc')
 
 PM25_ELEMENTS = [
     'A25I', 'A25J', 'ABNZ1J', 'ABNZ2J', 'ABNZ3J', 'ACLI', 'ACLJ', 'AECI', 'AECJ', 'AISO1J', 
@@ -42,8 +42,8 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
         XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0(9km) / 27000.0(27km)
         YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0(9km) / 27000.0(27km)
 
-        # nrows, ncols = 82, 67 # 9km
-        nrows, ncols = 128, 174 # 27km    
+        nrows, ncols = 82, 67 # 9km
+        # nrows, ncols = 128, 174 # 27km    
         
         lon = [[0 for j in range(ncols)] for i in range(nrows)]
         lat = [[0 for j in range(ncols)] for i in range(nrows)]
@@ -116,7 +116,7 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
                 wd_block = wds[i:i_end, j:j_end]
                 ws_block = wss[i:i_end, j:j_end]
 
-                # 각 블록의 평균(혹은 중심)
+                # 각 블록의 중심
                 avg_lon = np.mean(lon_block)
                 avg_lat = np.mean(lat_block)
                 avg_wd = np.mean(wd_block)
