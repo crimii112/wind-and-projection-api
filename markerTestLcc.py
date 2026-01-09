@@ -1,6 +1,7 @@
 import netCDF4 as nc
 import numpy as np
 import os
+from datetime import datetime, timedelta, timezone
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
@@ -24,17 +25,77 @@ PM10_ELEMENTS = [
     'AXYL3J'
 ]
 
-def convert_flatten_array(ds, el, tstep):
+GRID_CONFIG = {
+    9: {
+        "ACONC": "ACONC.09KM.2025063012.nc",
+        "GRIDCRO": "GRIDCRO2D_09KM.2025063012.nc",
+        "METCRO": "METCRO2D_09KM.2025063012.nc",
+        "nrows": 82,
+        "ncols": 67,
+        "half_cell": 4500
+    },
+    27: {
+        "ACONC": "ACONC.27KM.2025063012.nc",
+        "GRIDCRO": "GRIDCRO2D_27KM.2025063012.nc",
+        "METCRO": "METCRO2D_27KM.2025063012.nc",
+        "nrows": 128,
+        "ncols": 174,
+        "half_cell": 13500
+    },
+}
+
+KST = timezone(timedelta(hours=9))
+def get_datetime_from_tflag(ds, tstep):
+    yyyyddd = int(ds.variables['TFLAG'][tstep, 0, 0])
+    hhmmss  = int(ds.variables['TFLAG'][tstep, 0, 1])
+
+    year = yyyyddd // 1000
+    day_of_year = yyyyddd % 1000
+
+    hour = hhmmss // 10000
+    minute = (hhmmss % 10000) // 100
+    second = hhmmss % 100
+
+    # UTC datetime(파일 시간이 UTC)
+    dt_utc = datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+        days=day_of_year - 1,
+        hours=hour,
+        minutes=minute,
+        seconds=second
+    )
+    
+    # UTC → KST 변환
+    dt_kst = dt_utc.astimezone(KST)
+
+    return dt_kst
+
+def convert_flatten_array(ds, el, tstep, layer):
     print(ds.variables[el][tstep][0])
-    list = [float(v) for v in ds.variables[el][tstep][0].flatten()]
+    list = [float(v) for v in ds.variables[el][tstep][layer].flatten()]
     return np.array(list)
 
-def get_projection_test_lcc_data(bg_poll, arrow_gap):
+def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
     try:
-        ds_aconc = nc.Dataset(ACONC_PATH)
-        ds_gridcro = nc.Dataset(GRIDCRO_PATH)
-        ds_metcro = nc.Dataset(METCRO_PATH)
-        print("✅ NetCDF file opened successfully.")
+        if grid_km not in GRID_CONFIG:
+            raise ValueError(f"Unsupported gridKm: {grid_km}")
+    
+        cfg = GRID_CONFIG[grid_km]
+        
+        aconc_path = os.path.join(SCRIPT_DIR, 'data', cfg["ACONC"])
+        gridcro_path = os.path.join(SCRIPT_DIR, 'data', cfg["GRIDCRO"])
+        metcro_path = os.path.join(SCRIPT_DIR, 'data', cfg["METCRO"])
+        
+        ds_aconc = nc.Dataset(aconc_path)
+        ds_gridcro = nc.Dataset(gridcro_path)
+        ds_metcro = nc.Dataset(metcro_path)
+        
+        print(f"✅ NetCDF {grid_km}km files opened successfully.")
+        
+        ## datetime test(aconc는 tstep=239, metcro는 tstep=241)
+        print(get_datetime_from_tflag(ds_aconc, tstep))
+        print(get_datetime_from_tflag(ds_metcro, tstep))
+        print(get_datetime_from_tflag(ds_metcro, tstep))
+        print(get_datetime_from_tflag(ds_metcro, tstep))
         
         ## 격자(좌표계)
         XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0(9km) / -2349000.0(27km)
@@ -43,21 +104,24 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
         YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0(9km) / 27000.0(27km)
 
         # nrows, ncols = 82, 67 # 9km
-        nrows, ncols = 128, 174 # 27km    
+        # nrows, ncols = 128, 174 # 27km
+        nrows = cfg["nrows"]
+        ncols = cfg["ncols"]    
+        half = cfg["half_cell"]    
         
         lon = [[0 for j in range(ncols)] for i in range(nrows)]
         lat = [[0 for j in range(ncols)] for i in range(nrows)]
         for i in range(nrows):
             for j in range(ncols):
-                lon[i][j] = XORIG + (j * XCELL) + (XCELL / 2) # 4500(9km) / 13500(27km)
-                lat[i][j] = YORIG + (i * YCELL) + (XCELL / 2) # 4500(9km) / 13500(27km)
+                lon[i][j] = XORIG + (j * XCELL) + half # 4500(9km) / 13500(27km)
+                lat[i][j] = YORIG + (i * YCELL) + half # 4500(9km) / 13500(27km)
 
         lon = np.array(lon)
         lat = np.array(lat)
         
         ########## 격자 폴리곤 데이터 ##########
         if bg_poll == 'O3':
-            o3_arr = convert_flatten_array(ds_aconc, 'O3', 0)
+            o3_arr = convert_flatten_array(ds_aconc, 'O3', tstep, layer)
             polygon_data = [
                 {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
                 for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
@@ -66,7 +130,7 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
             # PM10
             pm10_all_arrays = []
             for el in PM10_ELEMENTS:
-                el_arr = convert_flatten_array(ds_aconc, el, 0)
+                el_arr = convert_flatten_array(ds_aconc, el, tstep, layer)
                 pm10_all_arrays.append(el_arr)
             
             pm10_arr = np.sum(pm10_all_arrays, axis=0)
@@ -78,7 +142,7 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
             # PM2.5
             pm25_all_arrays = []
             for el in PM25_ELEMENTS:
-                el_array = convert_flatten_array(ds_aconc, el, 0)
+                el_array = convert_flatten_array(ds_aconc, el, tstep, layer)
                 pm25_all_arrays.append(el_array)
             
             pm25_arr = np.sum(pm25_all_arrays, axis=0)
@@ -97,8 +161,8 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
         
         ########## 바람 화살표 데이터 ##########
         # 풍향, 풍속            
-        wds = ds_metcro.variables['WDIR10'][0][0]
-        wss = ds_metcro.variables['WSPD10'][0][0]
+        wds = ds_metcro.variables['WDIR10'][tstep][layer]
+        wss = ds_metcro.variables['WSPD10'][tstep][layer]
         
         arrow_data = []
         for i in range(0, nrows, arrow_gap):
@@ -132,6 +196,7 @@ def get_projection_test_lcc_data(bg_poll, arrow_gap):
         result = {
             "polygonData": polygon_data,
             "arrowData": arrow_data,
+            "datetime": get_datetime_from_tflag(ds_aconc, tstep).strftime("%Y-%m-%d %H:%M:%S")
         }
         
         # with open('wind.json', 'w') as f :
