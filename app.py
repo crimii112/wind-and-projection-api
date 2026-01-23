@@ -9,6 +9,7 @@ from projectionTestLcc import get_projection_test_lcc_data
 from projectionTestUtm import get_projection_test_utm_data
 from projectionTestUtm import get_projection_test_utm_ol_wind
 from markerTestLcc import get_marker_test_lcc_data
+from markerTestLccLayer import get_marker_test_lcc_layer_data
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -106,6 +107,23 @@ def get_marker_lcc_test():
         arrow_gap = body.get('arrowGap')
         
         result = get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, int(arrow_gap))
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/marker/lcc/layer', methods=['POST'])
+def get_marker_lcc_layer_test():
+    try:
+        body = request.get_json()
+        grid_km = body.get('gridKm')
+        layer = body.get('layer')
+        tstep = body.get('tstep')
+        bg_poll = body.get('bgPoll')
+        arrow_gap = body.get('arrowGap')
+        
+        result = get_marker_test_lcc_layer_data(grid_km, layer, tstep, bg_poll, int(arrow_gap))
         return jsonify(result)
 
     except Exception as e:
