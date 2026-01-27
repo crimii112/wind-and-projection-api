@@ -1,12 +1,17 @@
 import netCDF4 as nc
 import numpy as np
 import os
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+from flask import jsonify
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
-GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_27KM.2025063012.nc')
-METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_27KM.2025063012.nc')
+# ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
+# GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_27KM.2025063012.nc')
+# METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_27KM.2025063012.nc')
 # ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.09KM.2025063012.nc')
 # GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_09KM.2025063012.nc')
 # METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_09KM.2025063012.nc')
@@ -151,14 +156,6 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 for lat, lon, pm25 in zip(lat.flatten(), lon.flatten(), pm25_arr)
             ]
         
-        ##### TMP #####
-        # tmp_arr = convert_flatten_array(ds_metcro, 'TEMP2', 0)
-        # polygon_data = [
-        #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
-        #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
-        # ]
-        
-        
         ########## 바람 화살표 데이터 ##########
         # 풍향, 풍속            
         wds = ds_metcro.variables['WDIR10'][tstep][layer]
@@ -198,12 +195,7 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             "arrowData": arrow_data,
             "datetime": get_datetime_from_tflag(ds_aconc, tstep).strftime("%Y-%m-%d %H:%M:%S")
         }
-        
-        # with open('wind.json', 'w') as f :
-        #     json.dump(wind_data, f, indent=4)
-        
-        # with open('temp.json', 'w') as f :
-        #     json.dump(temp_data, f, indent=4)
+    
 
         return result
     
@@ -211,3 +203,52 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
         print(f"❌ Error: {e}")
         exit(1)
         
+
+def get_sido_shp():
+    load_dotenv()
+    host = os.getenv('DB_HOST')
+    port = os.getenv('DB_PORT')
+    database = os.getenv('DB_NAME')
+    user = os.getenv('DB_USER')
+    password = os.getenv('DB_PASSWD')
+    
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=database,
+        user=user,
+        password=password
+    )
+    
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cur.execute("""
+    SELECT json_build_object(
+    'type', 'FeatureCollection',
+    'features', json_agg(
+        json_build_object(
+        'type', 'Feature',
+        'id', gid,
+        'geometry', ST_AsGeoJSON(geom)::json,
+        'properties', json_build_object(
+            'gid', gid,
+            'ctprvn_cd', ctprvn_cd,
+            'ctp_eng_nm', ctp_eng_nm,
+            'ctp_kor_nm', ctp_kor_nm,
+            'sido_name', sido_name
+        )
+        )
+    )
+    ) AS geojson
+    FROM public.ctprvn4326;
+    """)
+    
+    result = cur.fetchone()
+    geojson = result["geojson"]
+    
+    cur.close()
+    conn.close()
+
+    return {"sidoshp": geojson}
+    
+    

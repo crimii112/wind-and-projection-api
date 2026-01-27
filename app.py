@@ -9,6 +9,7 @@ from projectionTestLcc import get_projection_test_lcc_data
 from projectionTestUtm import get_projection_test_utm_data
 from projectionTestUtm import get_projection_test_utm_ol_wind
 from markerTestLcc import get_marker_test_lcc_data
+from markerTestLcc import get_sido_shp
 from markerTestLccLayer import get_marker_test_lcc_layer_data
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -129,6 +130,17 @@ def get_marker_lcc_layer_test():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/marker/sidoshp', methods=['POST'])
+def get_sido_shp_test():
+    try:
+        result = get_sido_shp()
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+        
 
 if __name__ == '__main__':
     serve(app, host="0.0.0.0", port=5000)
