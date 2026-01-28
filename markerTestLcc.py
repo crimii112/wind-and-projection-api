@@ -79,6 +79,12 @@ def convert_flatten_array(ds, el, tstep, layer):
     list = [float(v) for v in ds.variables[el][tstep][layer].flatten()]
     return np.array(list)
 
+def wdws_to_uv(wd_deg, ws):
+    wd_rad = np.deg2rad(wd_deg)
+    u = -ws * np.sin(wd_rad)
+    v = -ws * np.cos(wd_rad)
+    return u, v
+
 def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
     try:
         if grid_km not in GRID_CONFIG:
@@ -189,20 +195,59 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                     'wd': float(avg_wd),
                     'ws': float(avg_ws)
                 })
+                
+        # u = np.zeros_like(wds)
+        # v = np.zeros_like(wds)
+
+        # for i in range(nrows):
+        #     for j in range(ncols):
+        #         u[i, j], v[i, j] = wdws_to_uv(wds[i, j], wss[i, j])
+
+        # # 남→북 뒤집기
+        # if lat[0][0] < lat[-1][0]:
+        #     u = np.flipud(u)
+        #     v = np.flipud(v)
+        
+        # earth_header = {
+        #     "nx": ncols,
+        #     "ny": nrows,
+        #     "lo1": float(lon[0][0]),
+        #     "la1": float(lat[0][0]),
+        #     "dx": float(XCELL),
+        #     "dy": -float(YCELL)
+        # }
+        
+        # earth_data = [
+        #     {
+        #         "header" : {
+        #             **earth_header,
+        #             "parameterCategory": 2,
+        #             "parameterNumber": 2
+        #         },
+        #         "data": u.flatten().tolist()  
+        #     },
+        #     {
+        #         "header" : {
+        #             **earth_header,
+        #             "parameterCategory": 2,
+        #             "parameterNumber": 3
+        #         },
+        #         "data": v.flatten().tolist()  
+        #     }
+        # ]
         
         result = {
             "polygonData": polygon_data,
             "arrowData": arrow_data,
+            # "earthData": earth_data,
             "datetime": get_datetime_from_tflag(ds_aconc, tstep).strftime("%Y-%m-%d %H:%M:%S")
         }
-    
 
         return result
     
     except Exception as e:
         print(f"❌ Error: {e}")
-        exit(1)
-        
+        raise
 
 def get_sido_shp():
     load_dotenv()

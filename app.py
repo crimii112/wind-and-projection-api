@@ -11,6 +11,7 @@ from projectionTestUtm import get_projection_test_utm_ol_wind
 from markerTestLcc import get_marker_test_lcc_data
 from markerTestLcc import get_sido_shp
 from markerTestLccLayer import get_marker_test_lcc_layer_data
+from markerTestLccEarth import get_earth_data
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -141,6 +142,19 @@ def get_sido_shp_test():
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
         
+@app.route('/api/marker/earth', methods=['POST'])
+def get_earth_test():
+    try:
+        body = request.get_json()
+        grid_km = body.get('gridKm')
+        layer = body.get('layer')
+        tstep = body.get('tstep')
+        result = get_earth_data(grid_km, tstep, layer)
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     serve(app, host="0.0.0.0", port=5000)

@@ -215,5 +215,5 @@ def get_marker_test_lcc_layer_data(grid_km, layer, tstep, bg_poll, arrow_gap):
     
     except Exception as e:
         print(f"❌ Error: {e}")
-        exit(1)
+        raise
         
