@@ -1,4 +1,13 @@
-json
-data
+# virtual env
+.venv/
+__pycache__/
 
+# model data
+data/
+json/
+
+# env
 .env
+
+# nc files
+*.nc
