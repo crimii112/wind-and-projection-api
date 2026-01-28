@@ -25,7 +25,6 @@ PM10_ELEMENTS = [
 ]
 
 def convert_flatten_array(ds, el, tstep):
-    print(ds.variables[el][tstep][0])
     list = [float(v) for v in ds.variables[el][tstep][0].flatten()]
     return np.array(list)
 

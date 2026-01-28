@@ -76,7 +76,6 @@ def get_projection_test_utm_ol_wind():
     lats = np.array(lats)
     lons = np.array(lons)
     wd = np.array(wds)
-    print(wd)
     ws = np.array(wss)
     
     rad = np.radians(wd)

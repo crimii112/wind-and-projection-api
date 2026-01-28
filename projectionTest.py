@@ -51,7 +51,6 @@ def get_projection_test_data():
         wds = ds_metcro.variables['WDIR10'][0][0]
         wss = ds_metcro.variables['WSPD10'][0][0]
         
-        print(wds.shape)
         wd = np.array([float(v) for v in wds.flatten()])
         ws = np.array([float(v) for v in wss.flatten()])
         

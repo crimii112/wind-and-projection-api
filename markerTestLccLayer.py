@@ -3,6 +3,7 @@ import numpy as np
 import os
 import math
 from datetime import datetime, timedelta, timezone
+from nc_cache import get_nc_dataset, nc_lock
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
@@ -86,132 +87,133 @@ def get_marker_test_lcc_layer_data(grid_km, layer, tstep, bg_poll, arrow_gap):
         gridcro_path = os.path.join(SCRIPT_DIR, 'data', cfg["GRIDCRO"])
         metdot_path = os.path.join(SCRIPT_DIR, 'data', cfg["METDOT"])
         
-        ds_conc = nc.Dataset(conc_path)
-        ds_gridcro = nc.Dataset(gridcro_path)
-        ds_metdot = nc.Dataset(metdot_path)
-        
-        print(f"✅ NetCDF {grid_km}km files opened successfully.")
-        
-        ## datetime test(conc는 tstep=240, metdot은 tstep=241)
-        print(get_datetime_from_tflag(ds_conc, tstep))
-        print(get_datetime_from_tflag(ds_metdot, tstep))
-        
-        ## 격자(좌표계)
-        XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0(9km) / -2349000.0(27km)
-        YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0(9km) / -1728000.0(27km)
-        XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0(9km) / 27000.0(27km)
-        YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0(9km) / 27000.0(27km)
-
-        # nrows, ncols = 82, 67 # 9km
-        # nrows, ncols = 128, 174 # 27km
-        nrows = cfg["nrows"]
-        ncols = cfg["ncols"]    
-        half = cfg["half_cell"]    
-        
-        lon = [[0 for j in range(ncols)] for i in range(nrows)]
-        lat = [[0 for j in range(ncols)] for i in range(nrows)]
-        for i in range(nrows):
-            for j in range(ncols):
-                lon[i][j] = XORIG + (j * XCELL) + half # 4500(9km) / 13500(27km)
-                lat[i][j] = YORIG + (i * YCELL) + half # 4500(9km) / 13500(27km)
-
-        lon = np.array(lon)
-        lat = np.array(lat)
-        
-        ########## 격자 폴리곤 데이터 ##########
-        if bg_poll == 'O3':
-            o3_arr = convert_flatten_array(ds_conc, 'O3', tstep, layer)
-            polygon_data = [
-                {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
-                for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
-            ]
-        elif bg_poll == 'PM10':
-            # PM10
-            pm10_all_arrays = []
-            for el in PM10_ELEMENTS:
-                el_arr = convert_flatten_array(ds_conc, el, tstep, layer)
-                pm10_all_arrays.append(el_arr)
+        with nc_lock():
+            ds_conc = get_nc_dataset(conc_path)
+            ds_gridcro = get_nc_dataset(gridcro_path)
+            ds_metdot = get_nc_dataset(metdot_path)
             
-            pm10_arr = np.sum(pm10_all_arrays, axis=0)
-            polygon_data = [
-                {'lat': float(lat), 'lon': float(lon), 'value': float(pm10)}
-                for lat, lon, pm10 in zip(lat.flatten(), lon.flatten(), pm10_arr)
-            ]
-        elif bg_poll == 'PM2.5':
-            # PM2.5
-            pm25_all_arrays = []
-            for el in PM25_ELEMENTS:
-                el_array = convert_flatten_array(ds_conc, el, tstep, layer)
-                pm25_all_arrays.append(el_array)
+            print(f"✅ NetCDF {grid_km}km files opened successfully.")
             
-            pm25_arr = np.sum(pm25_all_arrays, axis=0)
-            polygon_data = [
-                {'lat': float(lat), 'lon': float(lon), 'value': float(pm25)}
-                for lat, lon, pm25 in zip(lat.flatten(), lon.flatten(), pm25_arr)
-            ]
-        
-        ##### TMP #####
-        # tmp_arr = convert_flatten_array(ds_metdot, 'TEMP2', 0)
-        # polygon_data = [
-        #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
-        #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
-        # ]
-        
-        
-        ########## 바람 화살표 데이터 ##########
-        # 풍향, 풍속            
-        u_vals = ds_metdot.variables['UWIND'][tstep][layer]
-        v_vals = ds_metdot.variables['VWIND'][tstep][layer]
-        
-        arrow_data = []
-        for i in range(0, nrows, arrow_gap):
-            for j in range(0, ncols, arrow_gap):
-                # 슬라이스 범위 (경계 체크)
-                i_end = min(i + arrow_gap, nrows)
-                j_end = min(j + arrow_gap, ncols)
+            ## datetime test(conc는 tstep=240, metdot은 tstep=241)
+            # print(get_datetime_from_tflag(ds_conc, tstep))
+            # print(get_datetime_from_tflag(ds_metdot, tstep))
+            
+            ## 격자(좌표계)
+            XORIG = ds_gridcro.getncattr('XORIG')   # -180000.0(9km) / -2349000.0(27km)
+            YORIG = ds_gridcro.getncattr('YORIG')   # -585000.0(9km) / -1728000.0(27km)
+            XCELL = ds_gridcro.getncattr('XCELL')   # 9000.0(9km) / 27000.0(27km)
+            YCELL = ds_gridcro.getncattr('YCELL')   # 9000.0(9km) / 27000.0(27km)
 
-                if(i_end % arrow_gap != 0 or j_end % arrow_gap != 0):
-                    break
-                
-                # 해당 블록 추출
-                lon_block = lon[i:i_end, j:j_end]
-                lat_block = lat[i:i_end, j:j_end]
-                u_block = u_vals[i:i_end, j:j_end]
-                v_block = v_vals[i:i_end, j:j_end]
+            # nrows, ncols = 82, 67 # 9km
+            # nrows, ncols = 128, 174 # 27km
+            nrows = cfg["nrows"]
+            ncols = cfg["ncols"]    
+            half = cfg["half_cell"]    
+            
+            lon = [[0 for j in range(ncols)] for i in range(nrows)]
+            lat = [[0 for j in range(ncols)] for i in range(nrows)]
+            for i in range(nrows):
+                for j in range(ncols):
+                    lon[i][j] = XORIG + (j * XCELL) + half # 4500(9km) / 13500(27km)
+                    lat[i][j] = YORIG + (i * YCELL) + half # 4500(9km) / 13500(27km)
 
-                # 각 블록의 중심
-                avg_lon = np.mean(lon_block)
-                avg_lat = np.mean(lat_block)
-                avg_u = np.mean(u_block)
-                avg_v = np.mean(v_block)
+            lon = np.array(lon)
+            lat = np.array(lat)
+            
+            ########## 격자 폴리곤 데이터 ##########
+            if bg_poll == 'O3':
+                o3_arr = convert_flatten_array(ds_conc, 'O3', tstep, layer)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
+                    for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
+                ]
+            elif bg_poll == 'PM10':
+                # PM10
+                pm10_all_arrays = []
+                for el in PM10_ELEMENTS:
+                    el_arr = convert_flatten_array(ds_conc, el, tstep, layer)
+                    pm10_all_arrays.append(el_arr)
                 
-                ws = math.sqrt(avg_u**2 + avg_v**2)
+                pm10_arr = np.sum(pm10_all_arrays, axis=0)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm10)}
+                    for lat, lon, pm10 in zip(lat.flatten(), lon.flatten(), pm10_arr)
+                ]
+            elif bg_poll == 'PM2.5':
+                # PM2.5
+                pm25_all_arrays = []
+                for el in PM25_ELEMENTS:
+                    el_array = convert_flatten_array(ds_conc, el, tstep, layer)
+                    pm25_all_arrays.append(el_array)
                 
-                rad = math.atan2(avg_v, avg_u)
-                deg = math.degrees(rad)
-                
-                wd = (270 - deg) % 360
+                pm25_arr = np.sum(pm25_all_arrays, axis=0)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm25)}
+                    for lat, lon, pm25 in zip(lat.flatten(), lon.flatten(), pm25_arr)
+                ]
+            
+            ##### TMP #####
+            # tmp_arr = convert_flatten_array(ds_metdot, 'TEMP2', 0)
+            # polygon_data = [
+            #     {'lat': float(lat), 'lon': float(lon), 'value': float(tmp)-273.15}
+            #     for lat, lon, tmp in zip(lat.flatten(), lon.flatten(), tmp_arr)
+            # ]
+            
+            
+            ########## 바람 화살표 데이터 ##########
+            # 풍향, 풍속            
+            u_vals = ds_metdot.variables['UWIND'][tstep][layer]
+            v_vals = ds_metdot.variables['VWIND'][tstep][layer]
+            
+            arrow_data = []
+            for i in range(0, nrows, arrow_gap):
+                for j in range(0, ncols, arrow_gap):
+                    # 슬라이스 범위 (경계 체크)
+                    i_end = min(i + arrow_gap, nrows)
+                    j_end = min(j + arrow_gap, ncols)
 
-                arrow_data.append({
-                    'lat': float(avg_lat),
-                    'lon': float(avg_lon),
-                    'wd': float(wd),
-                    'ws': float(ws)
-                })
-        
-        result = {
-            "polygonData": polygon_data,
-            "arrowData": arrow_data,
-            "datetime": get_datetime_from_tflag(ds_conc, tstep).strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        # with open('wind.json', 'w') as f :
-        #     json.dump(wind_data, f, indent=4)
-        
-        # with open('temp.json', 'w') as f :
-        #     json.dump(temp_data, f, indent=4)
+                    if(i_end % arrow_gap != 0 or j_end % arrow_gap != 0):
+                        break
+                    
+                    # 해당 블록 추출
+                    lon_block = lon[i:i_end, j:j_end]
+                    lat_block = lat[i:i_end, j:j_end]
+                    u_block = u_vals[i:i_end, j:j_end]
+                    v_block = v_vals[i:i_end, j:j_end]
 
-        return result
+                    # 각 블록의 중심
+                    avg_lon = np.mean(lon_block)
+                    avg_lat = np.mean(lat_block)
+                    avg_u = np.mean(u_block)
+                    avg_v = np.mean(v_block)
+                    
+                    ws = math.sqrt(avg_u**2 + avg_v**2)
+                    
+                    rad = math.atan2(avg_v, avg_u)
+                    deg = math.degrees(rad)
+                    
+                    wd = (270 - deg) % 360
+
+                    arrow_data.append({
+                        'lat': float(avg_lat),
+                        'lon': float(avg_lon),
+                        'wd': float(wd),
+                        'ws': float(ws)
+                    })
+            
+            result = {
+                "polygonData": polygon_data,
+                "arrowData": arrow_data,
+                "datetime": get_datetime_from_tflag(ds_conc, tstep).strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # with open('wind.json', 'w') as f :
+            #     json.dump(wind_data, f, indent=4)
+            
+            # with open('temp.json', 'w') as f :
+            #     json.dump(temp_data, f, indent=4)
+
+            return result
     
     except Exception as e:
         print(f"❌ Error: {e}")
