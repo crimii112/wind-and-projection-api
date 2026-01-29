@@ -161,7 +161,20 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                     {'lat': float(lat), 'lon': float(lon), 'value': float(pm25)}
                     for lat, lon, pm25 in zip(lat.flatten(), lon.flatten(), pm25_arr)
                 ]
-            
+            elif bg_poll == 'TEMP':
+                # TEMP (K → ℃)
+                temp_k = ds_metcro["TEMP2"][tstep][layer]
+                temp_c = temp_k - 273.15
+
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(t)}
+                    for lat, lon, t in zip(
+                        lat.flatten(),
+                        lon.flatten(),
+                        temp_c.flatten()
+                    )
+                ]
+                
             ########## 바람 화살표 데이터 ##########
             # 풍향, 풍속            
             wds = ds_metcro.variables['WDIR10'][tstep][layer]

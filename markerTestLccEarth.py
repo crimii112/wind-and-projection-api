@@ -1,18 +1,23 @@
-import netCDF4 as nc
 import numpy as np
 import os
-import json
-from datetime import datetime, timedelta, timezone
-from pyproj import CRS, Transformer
+from datetime import datetime, timezone
 from nc_cache import get_nc_dataset, nc_lock
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
-# GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_27KM.2025063012.nc')
-# METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_27KM.2025063012.nc')
-ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.09KM.2025063012.nc')
-GRIDCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'GRIDCRO2D_09KM.2025063012.nc')
-METCRO_PATH = os.path.join(SCRIPT_DIR, 'data', 'METCRO2D_09KM.2025063012.nc')
+
+PM25_ELEMENTS = [
+    'A25I', 'A25J', 'ABNZ1J', 'ABNZ2J', 'ABNZ3J', 'ACLI', 'ACLJ', 'AECI', 'AECJ', 'AISO1J', 
+    'AISO2J', 'AISO3J', 'ANAI', 'ANAJ', 'ANH4I', 'ANH4J', 'ANO3I', 'ANO3J', 'AOLGAJ', 'AOLGBJ', 
+    'AORGCJ', 'AORGPAI', 'AORGPAJ', 'ASO4I', 'ASO4J', 'ASQTJ', 'ATOL1J', 'ATOL2J', 'ATOL3J', 'ATRP1J',
+    'ATRP2J', 'AXYL1J', 'AXYL2J', 'AXYL3J'
+]
+PM10_ELEMENTS = [
+    'A25I', 'A25J', 'ABNZ1J', 'ABNZ2J', 'ABNZ3J', 'ACLI', 'ACLJ', 'ACLK', 'ACORS', 'AECI', 
+    'AECJ', 'AISO1J', 'AISO2J', 'AISO3J', 'ANAI', 'ANAJ', 'ANAK', 'ANH4I', 'ANH4J', 'ANH4K',
+    'ANO3I', 'ANO3J', 'ANO3K', 'AOLGAJ', 'AOLGBJ', 'AORGCJ', 'AORGPAI', 'AORGPAJ', 'ASO4I', 'ASO4J', 
+    'ASO4K', 'ASOIL', 'ASQTJ', 'ATOL1J', 'ATOL2J', 'ATOL3J', 'ATRP1J', 'ATRP2J', 'AXYL1J', 'AXYL2J', 
+    'AXYL3J'
+]
 
 GRID_CONFIG = {
     9: {
@@ -33,6 +38,14 @@ GRID_CONFIG = {
     },
 }
 
+def sum_elements_2d(ds, elements, tstep, layer):
+    # ds[var][t][z] 는 보통 (ny, nx) 2D
+    acc = None
+    for el in elements:
+        arr = np.array(ds.variables[el][tstep][layer], dtype=np.float32)  # 2D
+        acc = arr if acc is None else acc + arr
+    return acc
+
 def convert_flatten_array(ds, el, tstep, layer):
     list = [float(v) for v in ds.variables[el][tstep][layer].flatten()]
     return np.array(list)
@@ -48,26 +61,17 @@ def wdws_to_uv(wd_deg, ws):
     v = -ws * np.cos(wd_rad)
     return u, v
 
-def get_earth_data(grid_km, tstep, layer):
+def get_earth_data(grid_km, tstep, layer, bg_poll='TEMP'):
     try:
         if grid_km not in GRID_CONFIG:
             raise ValueError(f"Unsupported grid_km: {grid_km}")
         
         cfg = GRID_CONFIG[grid_km]
-        gridcro_path = os.path.join(SCRIPT_DIR, "data", cfg["GRIDCRO"])
-        metcro_path  = os.path.join(SCRIPT_DIR, "data", cfg["METCRO"])
         
         with nc_lock():
             ds_gridcro = get_nc_dataset(os.path.join(SCRIPT_DIR, "data", cfg["GRIDCRO"]))
             ds_metcro  = get_nc_dataset(os.path.join(SCRIPT_DIR, "data", cfg["METCRO"]))
-            
-            # CRS
-            # lcc = CRS.from_proj4(
-            #     "+proj=lcc +lat_1=30 +lat_2=60 +lat_0=38 +lon_0=126 "
-            #     "+a=6370000 +b=6370000 +units=m +no_defs"
-            # )
-            # wgs84 = CRS.from_epsg(4326)
-            # tf = Transformer.from_crs(lcc, wgs84, always_xy=True)
+            ds_aconc   = get_nc_dataset(os.path.join(SCRIPT_DIR, "data", cfg["ACONC"]))
 
             # grid
             XORIG = ds_gridcro.getncattr("XORIG")
@@ -79,15 +83,19 @@ def get_earth_data(grid_km, tstep, layer):
             ncols = cfg["ncols"]    
             half = cfg["half_cell"]
 
-            x = XORIG + np.arange(ncols) * XCELL + half
-            y = YORIG + np.arange(nrows) * YCELL + half
-            xx, yy = np.meshgrid(x, y)
-
-            # lon, lat = tf.transform(xx, yy)
             lo1 = XORIG + half
             la1 = YORIG + (nrows - 1) * YCELL + half
 
-            # wind
+            header = {
+                "nx": ncols,
+                "ny": nrows,
+                "lo1": float(lo1),
+                "la1": float(la1),
+                "dx": float(XCELL),
+                "dy": -float(YCELL),   # 북 → 남
+            }
+
+            # ===== wind =====
             wdir = ds_metcro["WDIR10"][tstep][layer]
             wspd = ds_metcro["WSPD10"][tstep][layer]
 
@@ -97,65 +105,46 @@ def get_earth_data(grid_km, tstep, layer):
             for i in range(nrows):
                 for j in range(ncols):
                     u[i, j], v[i, j] = wdws_to_uv(wdir[i, j], wspd[i, j])
-
-            # # temp
-            # temp = ds_metcro["TEMP2"][tstep, layer]
-            
-            # print("top-left lat:", lat[0,0])
-            # print("bottom-left lat:", lat[-1,0])
-            
-            # if lat[0,0] < lat[-1,0]:   # 첫 행이 남쪽이면
-            #     u   = np.flipud(u)
-            #     v   = np.flipud(v)
-            #     lat = np.flipud(lat)
-            #     lon = np.flipud(lon)
-            #     # temp = np.flipud(temp)
                 
             u = np.flipud(u)
             v = np.flipud(v)
-            
-            header = {
-                "nx": ncols,
-                "ny": nrows,
-                "lo1": float(lo1),
-                "la1": float(la1),
-                "dx": float(XCELL),
-                "dy": -float(YCELL),   # 북 → 남
-                "parameterCategory": 2
-            }
 
+            # ===== scalar (bg_poll) =====
+            if bg_poll == "TEMP":
+                scalar = ds_metcro["TEMP2"][tstep][layer] - 273.15
+            elif bg_poll == "O3":
+                scalar = ds_aconc["O3"][tstep][layer]
+            elif bg_poll == "PM10":
+                scalar = sum_elements_2d(ds_aconc, PM10_ELEMENTS, tstep, layer)
+            elif bg_poll == "PM2.5":
+                scalar = sum_elements_2d(ds_aconc, PM25_ELEMENTS, tstep, layer)
+            else:
+                raise ValueError(f"Unsupported bg_poll: {bg_poll}")
+            
+            scalar = np.flipud(scalar)
+            
             now = datetime.now(timezone.utc).isoformat()
 
-            wind = [
+            earth = [
                 {
-                    "header": {**header, "parameterNumber": 2},
+                    "header": {**header, "parameterCategory": 2, "parameterNumber": 2},
                     "data": u.flatten().tolist(),
                     "meta": {"date": now}
                 },
                 {
-                    "header": {**header, "parameterNumber": 3},
+                    "header": {**header, "parameterCategory": 2, "parameterNumber": 3},
                     "data": v.flatten().tolist(),
                     "meta": {"date": now}
+                },
+                {
+                    "header": {**header, "parameterCategory": 0, "parameterNumber": 0},
+                    "data": scalar.flatten().tolist(),
+                    "meta": {"date": now, "bg_poll": bg_poll}
                 }
             ]
             
-            # temp = [
-            #     {
-            #         "header": {**header, "parameterNumber": 0, "parameterCategory": 0},
-            #         "data": temp.flatten().tolist(),
-            #         "meta": {"date": now}
-            #     },
-            # ]
 
-            # with open('earth_wind.json', "w") as f:
-            #     json.dump(wind, f)
-                
-            # with open('earth_temp.json', "w") as f:
-            #     json.dump(temp, f)
-
-            # print("✅ earth JSON saved")
-
-            return {"earthData" : wind}
+            return {"earthData" : earth}
     
     except Exception as e:
         print(f"❌ Error: {e}")

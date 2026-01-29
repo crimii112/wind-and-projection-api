@@ -149,7 +149,8 @@ def get_earth_test():
         grid_km = body.get('gridKm')
         layer = body.get('layer')
         tstep = body.get('tstep')
-        result = get_earth_data(grid_km, tstep, layer)
+        bg_poll = body.get('bgPoll')
+        result = get_earth_data(grid_km, tstep, layer, bg_poll)
         return jsonify(result)
     
     except Exception as e:
@@ -157,6 +158,6 @@ def get_earth_test():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True, use_reloader=False)
-    # serve(app, host="0.0.0.0", port=5000)/
+    # app.run(host="0.0.0.0", port=5000, debug=False, threaded=True, use_reloader=False)
+    serve(app, host="0.0.0.0", port=5000)
     
