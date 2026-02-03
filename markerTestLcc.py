@@ -7,6 +7,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from nc_cache import get_nc_dataset, nc_lock
+from pyproj import CRS, Transformer
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ACONC_PATH = os.path.join(SCRIPT_DIR, 'data', 'ACONC.27KM.2025063012.nc')
@@ -84,6 +85,25 @@ def wdws_to_uv(wd_deg, ws):
     v = -ws * np.cos(wd_rad)
     return u, v
 
+def get_lcc_to_wgs84_transformer():
+    lcc_crs = CRS.from_proj4(
+        "+proj=lcc "
+        "+lat_1=30 "
+        "+lat_2=60 "
+        "+lat_0=38 "
+        "+lon_0=126 "
+        "+x_0=0 "
+        "+y_0=0 "
+        "+a=6370000 "
+        "+b=6370000 "
+        "+units=m "
+        "+no_defs"
+    )
+
+    wgs84 = CRS.from_epsg(4326)
+
+    return Transformer.from_crs(lcc_crs, wgs84, always_xy=True)
+
 def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
     try:
         if grid_km not in GRID_CONFIG:
@@ -99,6 +119,8 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             ds_aconc = get_nc_dataset(aconc_path)
             ds_gridcro = get_nc_dataset(gridcro_path)
             ds_metcro = get_nc_dataset(metcro_path)
+            
+            transformer = get_lcc_to_wgs84_transformer()
             
             print(f"✅ NetCDF {grid_km}km files opened successfully.")
             
@@ -127,6 +149,15 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                     lon[i][j] = XORIG + (j * XCELL) + half # 4500(9km) / 13500(27km)
                     lat[i][j] = YORIG + (i * YCELL) + half # 4500(9km) / 13500(27km)
 
+            # lon = np.zeros((nrows, ncols))
+            # lat = np.zeros((nrows, ncols))
+
+            # for i in range(nrows):
+            #     for j in range(ncols):
+            #         x = XORIG + (j * XCELL) + half
+            #         y = YORIG + (i * YCELL) + half
+            #         lon[i][j], lat[i][j] = transformer.transform(x, y)
+            
             lon = np.array(lon)
             lat = np.array(lat)
             
@@ -221,13 +252,16 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             #     u = np.flipud(u)
             #     v = np.flipud(v)
             
+            # dx = abs(lon[0][1] - lon[0][0])
+            # dy = abs(lat[1][0] - lat[0][0])
+            
             # earth_header = {
             #     "nx": ncols,
             #     "ny": nrows,
             #     "lo1": float(lon[0][0]),
             #     "la1": float(lat[0][0]),
-            #     "dx": float(XCELL),
-            #     "dy": -float(YCELL)
+            #     "dx": dx,
+            #     "dy": dy
             # }
             
             # earth_data = [
@@ -248,6 +282,9 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             #         "data": v.flatten().tolist()  
             #     }
             # ]
+            
+            # with open("earth.json", "w", encoding="utf-8") as f:
+            #     json.dump(earth_data, f, ensure_ascii=False, indent=2)
             
             result = {
                 "polygonData": polygon_data,

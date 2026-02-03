@@ -1,3 +1,4 @@
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from waitress import serve
@@ -12,6 +13,7 @@ from markerTestLcc import get_marker_test_lcc_data
 from markerTestLcc import get_sido_shp
 from markerTestLccLayer import get_marker_test_lcc_layer_data
 from markerTestLccEarth import get_earth_data
+from markerTestLccWebGL import get_webgl_wind_png
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -156,6 +158,27 @@ def get_earth_test():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
+        
+@app.route('/api/marker/webgl', methods=['POST'])
+def get_webgl_test():
+    try:
+        body = request.get_json()
+        grid_km = body.get('gridKm')
+        layer = body.get('layer')
+        tstep = body.get('tstep')
+        png_buf, meta = get_webgl_wind_png(grid_km, layer, tstep)
+
+        png_base64 = base64.b64encode(png_buf.getvalue()).decode('UTF-8')
+
+        return jsonify({
+            "meta": meta,
+            "png": png_base64
+        })
+    
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     # app.run(host="0.0.0.0", port=5000, debug=False, threaded=True, use_reloader=False)

@@ -2,6 +2,7 @@ import numpy as np
 import os
 from datetime import datetime, timezone
 from nc_cache import get_nc_dataset, nc_lock
+import json
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -142,7 +143,6 @@ def get_earth_data(grid_km, tstep, layer, bg_poll='TEMP'):
                     "meta": {"date": now, "bg_poll": bg_poll}
                 }
             ]
-            
 
             return {"earthData" : earth}
     
