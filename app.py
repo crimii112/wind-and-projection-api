@@ -166,14 +166,42 @@ def get_webgl_test():
         grid_km = body.get('gridKm')
         layer = body.get('layer')
         tstep = body.get('tstep')
-        png_buf, meta = get_webgl_wind_png(grid_km, layer, tstep)
+        poll = body.get('poll')
+        wind_png, conc_png, meta = get_webgl_wind_png(grid_km, layer, tstep, poll)
 
-        png_base64 = base64.b64encode(png_buf.getvalue()).decode('UTF-8')
+        wind_base64 = base64.b64encode(wind_png.getvalue()).decode('UTF-8')
 
-        return jsonify({
-            "meta": meta,
-            "png": png_base64
-        })
+        response = {
+            "poll": poll,
+            "wind": {
+                "png": wind_base64,
+                "meta": {
+                    "width": meta["width"],
+                    "height": meta["height"],
+                    "extentLCC": meta["extentLCC"],
+                    "gridKm": meta["gridKm"],
+                    "uMin": meta["uMin"],
+                    "uMax": meta["uMax"],
+                    "vMin": meta["vMin"],
+                    "vMax": meta["vMax"],
+                },
+            },
+            "conc": None,
+        }
+        
+        # 농도 PNG가 있는 경우만 포함
+        if conc_png is not None:
+            conc_base64 = base64.b64encode(
+                conc_png.getvalue()
+            ).decode('utf-8')
+
+            response["conc"] = {
+                "png": conc_base64,
+                "min": meta["cMin"],
+                "max": meta["cMax"],
+            }
+
+        return jsonify(response)
     
     except Exception as e:
         print(f"Error: {e}")

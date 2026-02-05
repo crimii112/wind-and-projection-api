@@ -9,6 +9,20 @@ from PIL import Image
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+PM25_ELEMENTS = [
+    'A25I', 'A25J', 'ABNZ1J', 'ABNZ2J', 'ABNZ3J', 'ACLI', 'ACLJ', 'AECI', 'AECJ', 'AISO1J', 
+    'AISO2J', 'AISO3J', 'ANAI', 'ANAJ', 'ANH4I', 'ANH4J', 'ANO3I', 'ANO3J', 'AOLGAJ', 'AOLGBJ', 
+    'AORGCJ', 'AORGPAI', 'AORGPAJ', 'ASO4I', 'ASO4J', 'ASQTJ', 'ATOL1J', 'ATOL2J', 'ATOL3J', 'ATRP1J',
+    'ATRP2J', 'AXYL1J', 'AXYL2J', 'AXYL3J'
+]
+PM10_ELEMENTS = [
+    'A25I', 'A25J', 'ABNZ1J', 'ABNZ2J', 'ABNZ3J', 'ACLI', 'ACLJ', 'ACLK', 'ACORS', 'AECI', 
+    'AECJ', 'AISO1J', 'AISO2J', 'AISO3J', 'ANAI', 'ANAJ', 'ANAK', 'ANH4I', 'ANH4J', 'ANH4K',
+    'ANO3I', 'ANO3J', 'ANO3K', 'AOLGAJ', 'AOLGBJ', 'AORGCJ', 'AORGPAI', 'AORGPAJ', 'ASO4I', 'ASO4J', 
+    'ASO4K', 'ASOIL', 'ASQTJ', 'ATOL1J', 'ATOL2J', 'ATOL3J', 'ATRP1J', 'ATRP2J', 'AXYL1J', 'AXYL2J', 
+    'AXYL3J'
+]
+
 GRID_CONFIG = {
     9: {
         "ACONC": "ACONC.09KM.2025063012.nc",
@@ -44,17 +58,110 @@ def get_lcc_to_wgs84_transformer():
     wgs84 = CRS.from_epsg(4326)
     return Transformer.from_crs(lcc_crs, wgs84, always_xy=True)
 
-def get_webgl_wind_png(grid_km, layer, tstep):
+def get_policy_min_max(poll):
+    RGBA_RANGES = {
+        "O3": [
+            { "min": 0.0, "max": 0.01 },
+            { "min": 0.01, "max": 0.02 },
+            { "min": 0.02, "max": 0.03 },
+            { "min": 0.03, "max": 0.04 },
+            { "min": 0.04, "max": 0.05 },
+            { "min": 0.05, "max": 0.06 },
+            { "min": 0.06, "max": 0.07 },
+            { "min": 0.07, "max": 0.08 },
+            { "min": 0.08, "max": 0.09 },
+            { "min": 0.09, "max": 0.1 },
+            { "min": 0.1, "max": 0.11 },
+            { "min": 0.11, "max": 0.12 },
+            { "min": 0.12, "max": 0.13 },
+            { "min": 0.13, "max": 0.14 },
+            { "min": 0.14, "max": 0.15 },
+            { "min": 0.15, "max": 0.16 },
+            { "min": 0.16, "max": 0.17 },
+            { "min": 0.17, "max": 0.18 },
+            { "min": 0.18, "max": 0.19 },
+            { "min": 0.19, "max": float("inf") },
+        ],
+        "PM10": [
+            { "min": 6, "max": 18 },
+            { "min": 0, "max": 6 },
+            { "min": 18, "max": 31 },
+            { "min": 31, "max": 40 },
+            { "min": 40, "max": 48 },
+            { "min": 48, "max": 56 },
+            { "min": 56, "max": 64 },
+            { "min": 64, "max": 72 },
+            { "min": 72, "max": 81 },
+            { "min": 81, "max": 93 },
+            { "min": 93, "max": 105 },
+            { "min": 105, "max": 117 },
+            { "min": 117, "max": 130 },
+            { "min": 130, "max": 142 },
+            { "min": 142, "max": 151 },
+            { "min": 151, "max": 191 },
+            { "min": 191, "max": 231 },
+            { "min": 231, "max": 271 },
+            { "min": 271, "max": 320 },
+            { "min": 320, "max": float("inf") },
+        ],
+        "PM2.5": [
+            { "min": 0, "max": 5 },
+            { "min": 5, "max": 10 },
+            { "min": 10, "max": 16 },
+            { "min": 16, "max": 19 },
+            { "min": 19, "max": 22 },
+            { "min": 22, "max": 26 },
+            { "min": 26, "max": 30 },
+            { "min": 30, "max": 33 },
+            { "min": 33, "max": 36 },
+            { "min": 36, "max": 42 },
+            { "min": 42, "max": 48 },
+            { "min": 48, "max": 55 },
+            { "min": 55, "max": 62 },
+            { "min": 62, "max": 69 },
+            { "min": 69, "max": 76 },
+            { "min": 76, "max": 107 },
+            { "min": 107, "max": 138 },
+            { "min": 138, "max": 169 },
+            { "min": 169, "max": 200 },
+            { "min": 200, "max": float("inf") },
+        ],
+        "TEMP": [
+            { "min": -80.15, "max": -67.15 },
+            { "min": -67.15, "max": -54.15 },
+            { "min": -54.15, "max": -40.0 },
+            { "min": -40.0, "max": -17.78 },
+            { "min": -17.78, "max": 0.0 },
+            { "min": 0.0, "max": 2.0 },
+            { "min": 2.0, "max": 17.85 },
+            { "min": 17.85, "max": 24.85 },
+            { "min": 24.85, "max": 37.85 },
+            { "min": 37.85, "max": 54.85 },
+            { "min": 54.85, "max": float("inf") },
+        ],
+    }
+    
+    ranges = RGBA_RANGES[poll]
+    finite = [r for r in ranges if np.isfinite(r["min"]) and np.isfinite(r["max"])]
+    
+    policy_min = finite[0]["min"]
+    policy_max = finite[-1]["max"]
+
+    return policy_min, policy_max
+
+def get_webgl_wind_png(grid_km, layer, tstep, poll):
     try:
         if grid_km not in GRID_CONFIG:
             raise ValueError("Unsupported grid")
     
         cfg = GRID_CONFIG[grid_km]
         
+        aconc_path = os.path.join(SCRIPT_DIR, 'data', cfg["ACONC"])
         gridcro_path = os.path.join(SCRIPT_DIR, 'data', cfg["GRIDCRO"])
         metcro_path = os.path.join(SCRIPT_DIR, 'data', cfg["METCRO"])
         
         with nc_lock():
+            ds_aconc = get_nc_dataset(aconc_path)
             ds_gridcro = get_nc_dataset(gridcro_path)
             ds_metcro = get_nc_dataset(metcro_path)
             
@@ -68,7 +175,6 @@ def get_webgl_wind_png(grid_km, layer, tstep):
 
             nrows = cfg["nrows"]
             ncols = cfg["ncols"]    
-            half = cfg["half_cell"]    
             
             # LCC extent (grid 전체 영역)
             extent_lcc = [
@@ -78,7 +184,9 @@ def get_webgl_wind_png(grid_km, layer, tstep):
                 YORIG + nrows * YCELL,
             ]
 
-            ########## 바람 화살표 데이터 ##########
+            # ==========================================================
+            # 바람(u/v) → wind PNG
+            # ==========================================================
             # 풍향, 풍속            
             wds = ds_metcro.variables['WDIR10'][tstep][layer]
             wss = ds_metcro.variables['WSPD10'][tstep][layer]
@@ -108,23 +216,101 @@ def get_webgl_wind_png(grid_km, layer, tstep):
             rgba[..., 2] = 0        # B(사용 안 함)
             rgba[..., 3] = 255      # A(불투명)
             
-            # PNG 저장
-            # Image.fromarray(rgba, "RGBA").save(f"wind/{out_name}.png")
-            
             # 파일 저장 x -> 메모리 png
-            png_buffer = BytesIO()
-            Image.fromarray(rgba, "RGBA").save(png_buffer, format="PNG")
-            png_buffer.seek(0)
+            wind_png = BytesIO()
+            Image.fromarray(rgba, "RGBA").save(wind_png, format="PNG")
+            wind_png.seek(0)
+            
+            # ==========================================================
+            # poll이 WIND면 농도 PNG 없이 반환
+            # ==========================================================
+            if poll == "WIND":
+                webgl_meta = {
+                    "width": ncols,
+                    "height": nrows,
+                    "extentLCC": extent_lcc,
+                    "gridKm": grid_km,
 
+                    "uMin": u_min,
+                    "uMax": u_max,
+                    "vMin": v_min,
+                    "vMax": v_max,
+
+                    "pollutant": poll
+                }
+                
+                return wind_png, None, webgl_meta
+            
+            # ==========================================================
+            # 농도 데이터 → conc PNG (poll에 따라)
+            # ==========================================================
+            elif poll == "O3":
+                conc = ds_aconc.variables['O3'][tstep][layer]
+
+            elif poll == "PM10":
+                arrays = [
+                    ds_aconc.variables[el][tstep][layer]
+                    for el in PM10_ELEMENTS
+                ]
+                conc = np.sum(arrays, axis=0)
+
+            elif poll == "PM2.5":
+                arrays = [
+                    ds_aconc.variables[el][tstep][layer]
+                    for el in PM25_ELEMENTS
+                ]
+                conc = np.sum(arrays, axis=0)
+
+            elif poll == "TEMP":
+                conc = ds_metcro.variables["TEMP2"][tstep][layer] - 273.15
+
+            else:
+                raise ValueError(f"Unsupported pollutant: {poll}")
+
+            conc = np.flipud(conc)
+
+            # c_min = float(np.nanmin(conc))
+            # c_max = float(np.nanmax(conc))
+
+            # conc_img = np.clip(
+            #     (conc - c_min) / (c_max - c_min) * 255,
+            #     0, 255
+            # ).astype(np.uint8)
+            
+            policy_min, policy_max = get_policy_min_max(poll)
+            
+            conc_norm = (conc - policy_min) / (policy_max - policy_min)
+            conc_norm = np.clip(conc_norm, 0.0, 1.0)
+
+            conc_img = (conc_norm * 255).astype(np.uint8)
+
+            conc_rgba = np.zeros((nrows, ncols, 4), dtype=np.uint8)
+            conc_rgba[..., 0] = conc_img
+            conc_rgba[..., 1] = 0
+            conc_rgba[..., 2] = 0
+            conc_rgba[..., 3] = 255
+
+            conc_png = BytesIO()
+            Image.fromarray(conc_rgba, "RGBA").save(conc_png, format="PNG")
+            conc_png.seek(0)
+
+            # ==========================================================
+            # 메타데이터
+            # ==========================================================
             webgl_meta = {
                 "width": ncols,
                 "height": nrows,
+                "extentLCC": extent_lcc,
+                "gridKm": grid_km,
+
                 "uMin": u_min,
                 "uMax": u_max,
                 "vMin": v_min,
                 "vMax": v_max,
-                "gridKm": grid_km,
-                "extentLCC": extent_lcc,
+
+                "cMin": policy_min,
+                "cMax": policy_max,
+                "pollutant": poll
             }
             
             # with open(f"wind/{out_name}.json", "w") as f:
@@ -132,7 +318,7 @@ def get_webgl_wind_png(grid_km, layer, tstep):
             
             # print(f"✅ wind/{out_name}.png & json 생성 완료")
 
-            return png_buffer, webgl_meta
+            return wind_png, conc_png, webgl_meta
             
     except Exception as e:
         print(f"❌ Error: {e}")
