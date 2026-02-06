@@ -196,6 +196,9 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 # TEMP (K → ℃)
                 temp_k = ds_metcro["TEMP2"][tstep][layer]
                 temp_c = temp_k - 273.15
+                
+                # test용(전부 20)
+                # temp_c = np.full((nrows,ncols), 20.0, dtype=np.float32)
 
                 polygon_data = [
                     {'lat': float(lat), 'lon': float(lon), 'value': float(t)}
@@ -203,6 +206,17 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                         lat.flatten(),
                         lon.flatten(),
                         temp_c.flatten()
+                    )
+                ]
+            elif bg_poll == 'WIND':
+                ws = ds_metcro["WSPD10"][tstep][layer]
+                
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(ws)}
+                    for lat, lon, ws in zip(
+                        lat.flatten(),
+                        lon.flatten(),
+                        ws.flatten()
                     )
                 ]
                 

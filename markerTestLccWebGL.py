@@ -83,8 +83,8 @@ def get_policy_min_max(poll):
             { "min": 0.19, "max": float("inf") },
         ],
         "PM10": [
-            { "min": 6, "max": 18 },
             { "min": 0, "max": 6 },
+            { "min": 6, "max": 18 },
             { "min": 18, "max": 31 },
             { "min": 31, "max": 40 },
             { "min": 40, "max": 48 },
@@ -126,19 +126,53 @@ def get_policy_min_max(poll):
             { "min": 169, "max": 200 },
             { "min": 200, "max": float("inf") },
         ],
+        # "TEMP": [
+        #     { "min": -80.15, "max": -67.15 },
+        #     { "min": -67.15, "max": -54.15 },
+        #     { "min": -54.15, "max": -40.0 },
+        #     { "min": -40.0, "max": -17.78 },
+        #     { "min": -17.78, "max": 0.0 },
+        #     { "min": 0.0, "max": 2.0 },
+        #     { "min": 2.0, "max": 17.85 },
+        #     { "min": 17.85, "max": 24.85 },
+        #     { "min": 24.85, "max": 37.85 },
+        #     { "min": 37.85, "max": 54.85 },
+        #     { "min": 54.85, "max": float("inf") },
+        # ],
         "TEMP": [
-            { "min": -80.15, "max": -67.15 },
-            { "min": -67.15, "max": -54.15 },
-            { "min": -54.15, "max": -40.0 },
-            { "min": -40.0, "max": -17.78 },
-            { "min": -17.78, "max": 0.0 },
-            { "min": 0.0, "max": 2.0 },
-            { "min": 2.0, "max": 17.85 },
-            { "min": 17.85, "max": 24.85 },
-            { "min": 24.85, "max": 37.85 },
-            { "min": 37.85, "max": 54.85 },
-            { "min": 54.85, "max": float("inf") },
+            { "min": 0,  "max": 4  },
+            { "min": 4,  "max": 8  },
+            { "min": 8,  "max": 12 },
+            { "min": 12, "max": 16 },
+            { "min": 16, "max": 20 },
+            { "min": 20, "max": 24 },
+            { "min": 24, "max": 28 },
+            { "min": 28, "max": 32 },
+            { "min": 32, "max": 36 },
+            { "min": 36, "max": 40 },
+            # { "min": -10, "max": -6  },
+            # { "min": -6,  "max": -2  },
+            # { "min": -2,  "max": 2   },
+            # { "min": 2,   "max": 6   },
+            # { "min": 6,   "max": 10  },
+            # { "min": 10,  "max": 14  },
+            # { "min": 14,  "max": 18  },
+            # { "min": 18,  "max": 22  },
+            # { "min": 22,  "max": 26  },
+            # { "min": 26,  "max": 30  }
         ],
+        "WIND": [
+            { "min": 0, "max": 1 },
+            { "min": 1, "max": 2 },
+            { "min": 2, "max": 3 },
+            { "min": 3, "max": 4 },
+            { "min": 4, "max": 5 },
+            { "min": 5, "max": 6 },
+            { "min": 6, "max": 7 },
+            { "min": 7, "max": 8 },
+            { "min": 8, "max": 9 },
+            { "min": 9, "max": 10 },
+        ]
     }
     
     ranges = RGBA_RANGES[poll]
@@ -263,6 +297,8 @@ def get_webgl_wind_png(grid_km, layer, tstep, poll):
 
             elif poll == "TEMP":
                 conc = ds_metcro.variables["TEMP2"][tstep][layer] - 273.15
+                # test용(전부 20)
+                # conc = np.full((nrows, ncols), 20.0, dtype=np.float32)
 
             else:
                 raise ValueError(f"Unsupported pollutant: {poll}")

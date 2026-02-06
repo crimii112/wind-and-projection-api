@@ -113,12 +113,16 @@ def get_earth_data(grid_km, tstep, layer, bg_poll='TEMP'):
             # ===== scalar (bg_poll) =====
             if bg_poll == "TEMP":
                 scalar = ds_metcro["TEMP2"][tstep][layer] - 273.15
+                # test용(전부 20)
+                # scalar = np.full((nrows, ncols), 20.0, dtype=np.float32)
             elif bg_poll == "O3":
                 scalar = ds_aconc["O3"][tstep][layer]
             elif bg_poll == "PM10":
                 scalar = sum_elements_2d(ds_aconc, PM10_ELEMENTS, tstep, layer)
             elif bg_poll == "PM2.5":
                 scalar = sum_elements_2d(ds_aconc, PM25_ELEMENTS, tstep, layer)
+            elif bg_poll == 'WIND':
+                scalar = ds_metcro['WSPD10'][tstep][layer]
             else:
                 raise ValueError(f"Unsupported bg_poll: {bg_poll}")
             
