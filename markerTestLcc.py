@@ -50,6 +50,73 @@ GRID_CONFIG = {
     },
 }
 
+# ===== CAI helpers (Seoul CAI breakpoints) =====
+CAI_I_LO = np.array([0, 51, 101, 251], dtype=np.float32)
+CAI_I_HI = np.array([50, 100, 250, 500], dtype=np.float32)
+
+CAI_BPS = {
+    "PM2.5": np.array([[0, 15], [16, 35], [36, 75], [76, 500]], dtype=np.float32),
+    "PM10":  np.array([[0, 30], [31, 80], [81, 150], [151, 600]], dtype=np.float32),
+    "O3":    np.array([[0.0, 0.03], [0.0301, 0.09], [0.0901, 0.15], [0.1501, 0.6]], dtype=np.float32),
+    "NO2":   np.array([[0.0, 0.03], [0.0301, 0.06], [0.0601, 0.2], [0.2001, 2.0]], dtype=np.float32),
+    "CO":    np.array([[0.0, 2.0], [2.01, 9.0], [9.01, 15.0], [15.01, 50.0]], dtype=np.float32),
+    "SO2":   np.array([[0.0, 0.02], [0.0201, 0.05], [0.0501, 0.15], [0.1501, 1.0]], dtype=np.float32),
+}
+
+CAI_POLL_META = [
+    ("O3",   "ppm"),
+    ("SO2",  "ppm"),
+    ("NO2",  "ppm"),
+    ("CO",   "ppm"),
+    ("PM10", "µg/m³"),
+    ("PM2.5","µg/m³"),
+]
+
+def cai_subindex_array(cp: np.ndarray, bps: np.ndarray) -> np.ndarray:
+    """
+    Vectorized CAI sub-index (Ip) using piecewise linear interpolation:
+    Ip = (I_HI - I_LO)/(BP_HI - BP_LO) * (Cp - BP_LO) + I_LO
+    If Cp exceeds defined BP_HI, clamp to last BP_HI. (Seoul rule) :contentReference[oaicite:1]{index=1}
+    """
+    cp = np.asarray(cp, dtype=np.float32)
+    cp = np.maximum(cp, 0.0)
+
+    # clamp Cp to last BP_HI (very-unhealthy BP_HI)
+    cp = np.minimum(cp, bps[-1, 1])
+
+    out = np.zeros_like(cp, dtype=np.float32)
+
+    for k in range(4):
+        bp_lo, bp_hi = float(bps[k, 0]), float(bps[k, 1])
+        i_lo, i_hi = float(CAI_I_LO[k]), float(CAI_I_HI[k])
+
+        mask = (cp >= bp_lo) & (cp <= bp_hi)
+        denom = (bp_hi - bp_lo) if (bp_hi - bp_lo) != 0 else 1.0
+        out[mask] = ((i_hi - i_lo) / denom) * (cp[mask] - bp_lo) + i_lo
+
+    return np.rint(out).astype(np.int16)  # 정수 지수
+
+def cai_from_arrays(o3, so2, no2, co, pm10, pm25) -> np.ndarray:
+    sub_o3  = cai_subindex_array(o3,  CAI_BPS["O3"])
+    sub_so2 = cai_subindex_array(so2, CAI_BPS["SO2"])
+    sub_no2 = cai_subindex_array(no2, CAI_BPS["NO2"])
+    sub_co  = cai_subindex_array(co,  CAI_BPS["CO"])
+    sub_pm10= cai_subindex_array(pm10, CAI_BPS["PM10"])
+    sub_pm25= cai_subindex_array(pm25, CAI_BPS["PM2.5"])
+
+    subs = np.stack([sub_o3, sub_so2, sub_no2, sub_co, sub_pm10, sub_pm25], axis=0)
+
+    base = subs.max(axis=0)
+    main_idx = subs.argmax(axis=0)  # 대표 물질 index
+    
+    n_unhealthy = (subs >= 101).sum(axis=0)  # '나쁨 이상' 개수 :contentReference[oaicite:2]{index=2}
+    addon = np.where(n_unhealthy == 2, 50, np.where(n_unhealthy >= 3, 75, 0))  # :contentReference[oaicite:3]{index=3}
+
+    cai = base + addon
+    cai = np.minimum(cai, 500).astype(np.int16)
+    
+    return cai, main_idx
+
 KST = timezone(timedelta(hours=9))
 def get_datetime_from_tflag(ds, tstep):
     yyyyddd = int(ds.variables['TFLAG'][tstep, 0, 0])
@@ -165,8 +232,26 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             if bg_poll == 'O3':
                 o3_arr = convert_flatten_array(ds_aconc, 'O3', tstep, layer)
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(o3)}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(o3), "overlay": f"O3: {o3:.3f}(ppm)"}
                     for lat, lon, o3 in zip(lat.flatten(), lon.flatten(), o3_arr)
+                ]
+            elif bg_poll == 'SO2':
+                so2_arr = convert_flatten_array(ds_aconc, 'SO2', tstep, layer)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(so2), "overlay": f"SO2: {so2:.3f}(ppm)"}
+                    for lat, lon, so2 in zip(lat.flatten(), lon.flatten(), so2_arr)
+                ]
+            elif bg_poll == 'NO2':
+                no2_arr = convert_flatten_array(ds_aconc, 'NO2', tstep, layer)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(no2), "overlay": f"NO2: {no2:.3f}(ppm)"}
+                    for lat, lon, no2 in zip(lat.flatten(), lon.flatten(), no2_arr)
+                ]
+            elif bg_poll == 'CO':
+                co_arr = convert_flatten_array(ds_aconc, 'CO', tstep, layer)
+                polygon_data = [
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(co), "overlay": f"CO: {co:.3f}(ppm)"}
+                    for lat, lon, co in zip(lat.flatten(), lon.flatten(), co_arr)
                 ]
             elif bg_poll == 'PM10':
                 # PM10
@@ -177,7 +262,7 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 
                 pm10_arr = np.sum(pm10_all_arrays, axis=0)
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm10)}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm10), "overlay": f"PM10: {int(round(pm10))}(µg/m³)"}
                     for lat, lon, pm10 in zip(lat.flatten(), lon.flatten(), pm10_arr)
                 ]
             elif bg_poll == 'PM2.5':
@@ -189,7 +274,7 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 
                 pm25_arr = np.sum(pm25_all_arrays, axis=0)
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm25)}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(pm25), "overlay": f"PM2.5: {int(round(pm25))}(µg/m³)"}
                     for lat, lon, pm25 in zip(lat.flatten(), lon.flatten(), pm25_arr)
                 ]
             elif bg_poll == 'TEMP':
@@ -201,7 +286,7 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 # temp_c = np.full((nrows,ncols), 20.0, dtype=np.float32)
 
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(t)}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(t), "overlay": f"TEMP: {t:.1f}(°C)"}
                     for lat, lon, t in zip(
                         lat.flatten(),
                         lon.flatten(),
@@ -212,13 +297,62 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                 ws = ds_metcro["WSPD10"][tstep][layer]
                 
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(ws)}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(ws), "overlay": f"풍속: {ws:.3f}(m/s)"}
                     for lat, lon, ws in zip(
                         lat.flatten(),
                         lon.flatten(),
                         ws.flatten()
                     )
                 ]
+            elif bg_poll == 'CAI':
+                o3_arr = convert_flatten_array(ds_aconc, 'O3', tstep, layer)
+                so2_arr = convert_flatten_array(ds_aconc, 'SO2', tstep, layer)
+                no2_arr = convert_flatten_array(ds_aconc, 'NO2', tstep, layer)
+                co_arr = convert_flatten_array(ds_aconc, 'CO', tstep, layer)
+                
+                pm10_all = [convert_flatten_array(ds_aconc, el, tstep, layer) for el in PM10_ELEMENTS]
+                pm10_arr = np.sum(pm10_all, axis=0)
+
+                pm25_all = [convert_flatten_array(ds_aconc, el, tstep, layer) for el in PM25_ELEMENTS]
+                pm25_arr = np.sum(pm25_all, axis=0)
+                
+                cai_arr, main_idx_arr = cai_from_arrays(
+                    o3=o3_arr, so2=so2_arr, no2=no2_arr, co=co_arr,
+                    pm10=pm10_arr, pm25=pm25_arr
+                )
+                
+                all_values = [o3_arr, so2_arr, no2_arr, co_arr, pm10_arr, pm25_arr]
+                
+                polygon_data = []
+                
+                for lat_v, lon_v, cai, midx, vals in zip(
+                    lat.flatten(),
+                    lon.flatten(),
+                    cai_arr,
+                    main_idx_arr,
+                    zip(*all_values)
+                ):
+                    poll, unit = CAI_POLL_META[midx]
+                    conc = vals[midx]
+
+                    if poll in ("PM10", "PM2.5"):
+                        conc_txt = f"{int(round(conc))}"
+                    else:
+                        conc_txt = f"{conc:.3f}"
+                        
+                    overlay = f"CAI: {int(cai)}\n{poll} ({ conc_txt} {unit})"
+
+                    polygon_data.append({
+                        "lat": float(lat_v),
+                        "lon": float(lon_v),
+                        "value": int(cai),
+                        "overlay": overlay
+                    })
+                
+                # polygon_data = [
+                #     {'lat': float(lat), 'lon': float(lon), 'value': int(cai)}
+                #     for lat, lon, cai in zip(lat.flatten(), lon.flatten(), cai_arr)
+                # ]
                 
             ########## 바람 화살표 데이터 ##########
             # 풍향, 풍속            
@@ -254,56 +388,9 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                         'ws': float(avg_ws)
                     })
                     
-            # u = np.zeros_like(wds)
-            # v = np.zeros_like(wds)
-
-            # for i in range(nrows):
-            #     for j in range(ncols):
-            #         u[i, j], v[i, j] = wdws_to_uv(wds[i, j], wss[i, j])
-
-            # # 남→북 뒤집기
-            # if lat[0][0] < lat[-1][0]:
-            #     u = np.flipud(u)
-            #     v = np.flipud(v)
-            
-            # dx = abs(lon[0][1] - lon[0][0])
-            # dy = abs(lat[1][0] - lat[0][0])
-            
-            # earth_header = {
-            #     "nx": ncols,
-            #     "ny": nrows,
-            #     "lo1": float(lon[0][0]),
-            #     "la1": float(lat[0][0]),
-            #     "dx": dx,
-            #     "dy": dy
-            # }
-            
-            # earth_data = [
-            #     {
-            #         "header" : {
-            #             **earth_header,
-            #             "parameterCategory": 2,
-            #             "parameterNumber": 2
-            #         },
-            #         "data": u.flatten().tolist()  
-            #     },
-            #     {
-            #         "header" : {
-            #             **earth_header,
-            #             "parameterCategory": 2,
-            #             "parameterNumber": 3
-            #         },
-            #         "data": v.flatten().tolist()  
-            #     }
-            # ]
-            
-            # with open("earth.json", "w", encoding="utf-8") as f:
-            #     json.dump(earth_data, f, ensure_ascii=False, indent=2)
-            
             result = {
                 "polygonData": polygon_data,
                 "arrowData": arrow_data,
-                # "earthData": earth_data,
                 "datetime": get_datetime_from_tflag(ds_aconc, tstep).strftime("%Y-%m-%d %H:%M:%S")
             }
 

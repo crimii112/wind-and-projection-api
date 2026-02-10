@@ -42,6 +42,61 @@ GRID_CONFIG = {
     },
 }
 
+# ===== CAI helpers (Seoul CAI breakpoints) =====
+CAI_I_LO = np.array([0, 51, 101, 251], dtype=np.float32)
+CAI_I_HI = np.array([50, 100, 250, 500], dtype=np.float32)
+
+CAI_BPS = {
+    "PM2.5": np.array([[0, 15], [16, 35], [36, 75], [76, 500]], dtype=np.float32),
+    "PM10":  np.array([[0, 30], [31, 80], [81, 150], [151, 600]], dtype=np.float32),
+    "O3":    np.array([[0.0, 0.03], [0.0301, 0.09], [0.0901, 0.15], [0.1501, 0.6]], dtype=np.float32),
+    "NO2":   np.array([[0.0, 0.03], [0.0301, 0.06], [0.0601, 0.2], [0.2001, 2.0]], dtype=np.float32),
+    "CO":    np.array([[0.0, 2.0], [2.01, 9.0], [9.01, 15.0], [15.01, 50.0]], dtype=np.float32),
+    "SO2":   np.array([[0.0, 0.02], [0.0201, 0.05], [0.0501, 0.15], [0.1501, 1.0]], dtype=np.float32),
+}
+
+def cai_subindex_array(cp: np.ndarray, bps: np.ndarray) -> np.ndarray:
+    """
+    Vectorized CAI sub-index (Ip) using piecewise linear interpolation:
+    Ip = (I_HI - I_LO)/(BP_HI - BP_LO) * (Cp - BP_LO) + I_LO
+    If Cp exceeds defined BP_HI, clamp to last BP_HI. (Seoul rule) :contentReference[oaicite:1]{index=1}
+    """
+    cp = np.asarray(cp, dtype=np.float32)
+    cp = np.maximum(cp, 0.0)
+
+    # clamp Cp to last BP_HI (very-unhealthy BP_HI)
+    cp = np.minimum(cp, bps[-1, 1])
+
+    out = np.zeros_like(cp, dtype=np.float32)
+
+    for k in range(4):
+        bp_lo, bp_hi = float(bps[k, 0]), float(bps[k, 1])
+        i_lo, i_hi = float(CAI_I_LO[k]), float(CAI_I_HI[k])
+
+        mask = (cp >= bp_lo) & (cp <= bp_hi)
+        denom = (bp_hi - bp_lo) if (bp_hi - bp_lo) != 0 else 1.0
+        out[mask] = ((i_hi - i_lo) / denom) * (cp[mask] - bp_lo) + i_lo
+
+    return np.rint(out).astype(np.int16)  # 정수 지수
+
+def cai_from_arrays(o3, so2, no2, co, pm10, pm25) -> np.ndarray:
+    sub_o3  = cai_subindex_array(o3,  CAI_BPS["O3"])
+    sub_so2 = cai_subindex_array(so2, CAI_BPS["SO2"])
+    sub_no2 = cai_subindex_array(no2, CAI_BPS["NO2"])
+    sub_co  = cai_subindex_array(co,  CAI_BPS["CO"])
+    sub_pm10= cai_subindex_array(pm10, CAI_BPS["PM10"])
+    sub_pm25= cai_subindex_array(pm25, CAI_BPS["PM2.5"])
+
+    subs = np.stack([sub_o3, sub_so2, sub_no2, sub_co, sub_pm10, sub_pm25], axis=0)
+
+    base = subs.max(axis=0)
+    n_unhealthy = (subs >= 101).sum(axis=0)  # '나쁨 이상' 개수 :contentReference[oaicite:2]{index=2}
+    addon = np.where(n_unhealthy == 2, 50, np.where(n_unhealthy >= 3, 75, 0))  # :contentReference[oaicite:3]{index=3}
+
+    cai = base + addon
+    cai = np.minimum(cai, 500).astype(np.int16)
+    return cai
+
 def wdws_to_uv(wd_deg, ws):
     wd_rad = np.deg2rad(wd_deg)
     u = -ws * np.sin(wd_rad)
@@ -81,6 +136,72 @@ def get_policy_min_max(poll):
             { "min": 0.17, "max": 0.18 },
             { "min": 0.18, "max": 0.19 },
             { "min": 0.19, "max": float("inf") },
+        ],
+        "SO2": [
+            { "min": 0.0, "max": 0.006 },
+            { "min": 0.006, "max": 0.013 },
+            { "min": 0.013, "max": 0.020 },
+            { "min": 0.020, "max": 0.025 },
+            { "min": 0.025, "max": 0.030 },
+            { "min": 0.030, "max": 0.035 },
+            { "min": 0.035, "max": 0.040 },
+            { "min": 0.040, "max": 0.045 },
+            { "min": 0.045, "max": 0.050 },
+            { "min": 0.050, "max": 0.067 },
+            { "min": 0.067, "max": 0.084 },
+            { "min": 0.084, "max": 0.101 },
+            { "min": 0.101, "max": 0.118 },
+            { "min": 0.118, "max": 0.134 },
+            { "min": 0.134, "max": 0.150 },
+            { "min": 0.150, "max": 0.160 },
+            { "min": 0.160, "max": 0.170 },
+            { "min": 0.170, "max": 0.180 },
+            { "min": 0.180, "max": 0.190 },
+            { "min": 0.190, "max": float("inf") },
+        ],
+        "NO2": [
+            { "min": 0.0, "max": 0.01 },
+            { "min": 0.01, "max": 0.02 },
+            { "min": 0.02, "max": 0.03 },
+            { "min": 0.03, "max": 0.035 },
+            { "min": 0.035, "max": 0.04 },
+            { "min": 0.04, "max": 0.045 },
+            { "min": 0.045, "max": 0.05 },
+            { "min": 0.05, "max": 0.055 },
+            { "min": 0.055, "max": 0.06 },
+            { "min": 0.06, "max": 0.08 },
+            { "min": 0.08, "max": 0.10 },
+            { "min": 0.10, "max": 0.12 },
+            { "min": 0.12, "max": 0.14 },
+            { "min": 0.14, "max": 0.17 },
+            { "min": 0.17, "max": 0.20 },
+            { "min": 0.20, "max": 0.21 },
+            { "min": 0.21, "max": 0.22 },
+            { "min": 0.22, "max": 0.23 },
+            { "min": 0.23, "max": 0.24 },
+            { "min": 0.24, "max": float("inf") },
+        ],
+        "CO": [
+            { "min": 0.0, "max": 0.6 },
+            { "min": 0.6, "max": 1.3 },
+            { "min": 1.3, "max": 2 },
+            { "min": 2, "max": 3.1 },
+            { "min": 3.1, "max": 4.2 },
+            { "min": 4.2, "max": 5.4 },
+            { "min": 5.4, "max": 6.6 },
+            { "min": 6.6, "max": 7.8 },
+            { "min": 7.8, "max": 9 },
+            { "min": 9, "max": 10 },
+            { "min": 10, "max": 11 },
+            { "min": 11, "max": 12 },
+            { "min": 12, "max": 13 },
+            { "min": 13, "max": 14 },
+            { "min": 14, "max": 15 },
+            { "min": 15, "max": 16 },
+            { "min": 16, "max": 17 },
+            { "min": 17, "max": 18 },
+            { "min": 18, "max": 19 },
+            { "min": 19, "max": float("inf") },
         ],
         "PM10": [
             { "min": 0, "max": 6 },
@@ -172,6 +293,12 @@ def get_policy_min_max(poll):
             { "min": 7, "max": 8 },
             { "min": 8, "max": 9 },
             { "min": 9, "max": 10 },
+        ],
+        "CAI": [
+            { "min": 0, "max": 50 },
+            { "min": 51, "max": 100 },
+            { "min": 101, "max": 250 },
+            { "min": 251, "max": 500 },
         ]
     }
     
@@ -280,6 +407,15 @@ def get_webgl_wind_png(grid_km, layer, tstep, poll):
             # ==========================================================
             elif poll == "O3":
                 conc = ds_aconc.variables['O3'][tstep][layer]
+                
+            elif poll == "SO2":
+                conc = ds_aconc.variables['SO2'][tstep][layer]
+                
+            elif poll == "NO2":
+                conc = ds_aconc.variables['NO2'][tstep][layer]
+                
+            elif poll == "CO":
+                conc = ds_aconc.variables['CO'][tstep][layer]
 
             elif poll == "PM10":
                 arrays = [
@@ -300,6 +436,19 @@ def get_webgl_wind_png(grid_km, layer, tstep, poll):
                 # test용(전부 20)
                 # conc = np.full((nrows, ncols), 20.0, dtype=np.float32)
 
+            elif poll == 'CAI':
+                o3  = np.array(ds_aconc.variables["O3"][tstep][layer],  dtype=np.float32)
+                so2 = np.array(ds_aconc.variables["SO2"][tstep][layer], dtype=np.float32)
+                no2 = np.array(ds_aconc.variables["NO2"][tstep][layer], dtype=np.float32)
+                co  = np.array(ds_aconc.variables["CO"][tstep][layer],  dtype=np.float32)
+
+                pm10_arrays = [ds_aconc.variables[el][tstep][layer] for el in PM10_ELEMENTS]
+                pm10 = np.sum(pm10_arrays, axis=0).astype(np.float32)
+
+                pm25_arrays = [ds_aconc.variables[el][tstep][layer] for el in PM25_ELEMENTS]
+                pm25 = np.sum(pm25_arrays, axis=0).astype(np.float32)
+                
+                conc = cai_from_arrays(o3=o3, so2=so2, no2=no2, co=co, pm10=pm10, pm25=pm25).astype(np.float32)
             else:
                 raise ValueError(f"Unsupported pollutant: {poll}")
 
