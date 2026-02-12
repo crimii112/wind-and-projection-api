@@ -1,5 +1,5 @@
 import base64
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from waitress import serve
 from getWindData import download_and_convert
@@ -14,6 +14,7 @@ from markerTestLcc import get_sido_shp
 from markerTestLccLayer import get_marker_test_lcc_layer_data
 from markerTestLccEarth import get_earth_data
 from markerTestLccWebGL import get_webgl_wind_png
+from markerTestUtm import get_utm_wind_data, get_utm_img_data
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -207,8 +208,51 @@ def get_webgl_test():
         print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/utm/wind', methods=['POST'])
+def get_utm_wind_data_test():
+    try:
+        body = request.get_json()
+        
+        yyyy =body.get('yyyy')
+        mm =body.get('MM')
+        dd =body.get('dd')
+        hh =body.get('HH')
+        
+        if not all([yyyy, mm, dd, hh]):
+            return jsonify({"error": "Missing required parameters"}), 400
+        
+        print(f"📡 UTM Wind Request: {yyyy}-{mm}-{dd} {hh}h")
 
+        result = get_utm_wind_data(yyyy, mm, dd, hh)
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[UTM WIND ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/utm/img', methods=['POST'])
+def get_utm_img_data_test():
+    try:
+        body = request.get_json()
+        
+        img_type = body.get('imgType')
+        yyyy =body.get('yyyy')
+        mm =body.get('MM')
+        dd =body.get('dd')
+        hh =body.get('HH')
+        
+        image_bytes = get_utm_img_data(img_type, yyyy, mm, dd, hh)
+        
+        return send_file(
+            image_bytes,
+            mimetype="image/png"
+        )
+    except Exception as e:
+        print(f"[UTM IMAGE ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == '__main__':
     # app.run(host="0.0.0.0", port=5000, debug=False, threaded=True, use_reloader=False)
-    serve(app, host="0.0.0.0", port=5000)
+    serve(app, host="0.0.0.0", port=5005)
     

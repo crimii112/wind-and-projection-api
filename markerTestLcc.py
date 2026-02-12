@@ -238,13 +238,13 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
             elif bg_poll == 'SO2':
                 so2_arr = convert_flatten_array(ds_aconc, 'SO2', tstep, layer)
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(so2), "overlay": f"SO2: {so2:.3f}(ppm)"}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(so2), "overlay": f"SO2: {so2:.4f}(ppm)"}
                     for lat, lon, so2 in zip(lat.flatten(), lon.flatten(), so2_arr)
                 ]
             elif bg_poll == 'NO2':
                 no2_arr = convert_flatten_array(ds_aconc, 'NO2', tstep, layer)
                 polygon_data = [
-                    {'lat': float(lat), 'lon': float(lon), 'value': float(no2), "overlay": f"NO2: {no2:.3f}(ppm)"}
+                    {'lat': float(lat), 'lon': float(lon), 'value': float(no2), "overlay": f"NO2: {no2:.4f}(ppm)"}
                     for lat, lon, no2 in zip(lat.flatten(), lon.flatten(), no2_arr)
                 ]
             elif bg_poll == 'CO':
@@ -332,15 +332,19 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                     main_idx_arr,
                     zip(*all_values)
                 ):
-                    poll, unit = CAI_POLL_META[midx]
-                    conc = vals[midx]
+                    o3_v, so2_v, no2_v, co_v, pm10_v, pm25_v = vals
+                    main_poll, _ = CAI_POLL_META[midx]
 
-                    if poll in ("PM10", "PM2.5"):
-                        conc_txt = f"{int(round(conc))}"
-                    else:
-                        conc_txt = f"{conc:.3f}"
-                        
-                    overlay = f"CAI: {int(cai)}\n{poll} ({ conc_txt} {unit})"
+                    overlay = (
+                        f"CAI: {int(cai)}\n"
+                        f"대표 물질: {main_poll}\n\n"
+                        f"PM10: {int(round(pm10_v))}\n"
+                        f"PM2.5: {int(round(pm25_v))}\n"
+                        f"O3: {o3_v:.3f}\n"
+                        f"NO2: {no2_v:.4f}\n"
+                        f"SO2: {so2_v:.4f}\n"
+                        f"CO: {co_v:.3f}\n"
+                    )
 
                     polygon_data.append({
                         "lat": float(lat_v),
@@ -348,11 +352,6 @@ def get_marker_test_lcc_data(grid_km, layer, tstep, bg_poll, arrow_gap):
                         "value": int(cai),
                         "overlay": overlay
                     })
-                
-                # polygon_data = [
-                #     {'lat': float(lat), 'lon': float(lon), 'value': int(cai)}
-                #     for lat, lon, cai in zip(lat.flatten(), lon.flatten(), cai_arr)
-                # ]
                 
             ########## 바람 화살표 데이터 ##########
             # 풍향, 풍속            
